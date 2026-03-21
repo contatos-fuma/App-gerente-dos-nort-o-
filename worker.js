@@ -5,10 +5,10 @@
 
 const corsHeaders = (env, req) => {
   const origin = req.headers.get('Origin') || '';
-  const allowed = (env.ALLOWED_ORIGIN || '*').split(',').map(s => s.trim());
+  const allowed = (env.ALLOWED_ORIGIN || 'https://app-gerente-dos-nort-o.pages.dev').split(',').map(s => s.trim());
   const ok = allowed.includes(origin) || allowed.includes('*');
   return {
-    'Access-Control-Allow-Origin':  ok ? origin : (allowed[0] || '*'),
+    'Access-Control-Allow-Origin':  ok ? origin : allowed[0],
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, X-Worker-Token',
     'Access-Control-Max-Age':       '86400',
@@ -302,8 +302,10 @@ async function rotaFuncPagar({ token, valor, obs, analiseIA, hashComprovante }, 
   const rows = await getResp.json();
   if (!rows?.[0]) return json({ ok: false, erro: 'Usuário não encontrado' }, 404, cors);
   const dados = JSON.parse(rows[0].dados);
-  const fi = (dados.clientes || []).findIndex(c => c.nome === funcNome);
-  if (fi < 0) return json({ ok: false, erro: 'Funcionário não encontrado' }, 404, cors);
+  // ✅ funcNome vem do JWT assinado — não pode ser falsificado
+  const funcNomeSeguro = String(funcNome).trim();
+  const fi = (dados.clientes || []).findIndex(c => c.nome === funcNomeSeguro);
+  if (fi < 0) return json({ ok: false, erro: 'Funcionario nao encontrado' }, 404, cors);
   let hashReal = null;
   if (hashComprovante) {
     try { const enc = new TextEncoder().encode(String(hashComprovante)); const buf = await crypto.subtle.digest('SHA-256', enc); hashReal = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join(''); } catch (e) {}

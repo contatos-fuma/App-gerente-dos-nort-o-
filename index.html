@@ -4101,8 +4101,7 @@ function configurarChaveAnthropicIA(){
 }
 
 async function analisarComprovanteIA(base64, valor, nomeFuncionario, historicoPagamentos, hashAtual){
-  const chave = _getAnthropicKey();
-  if(!chave) return { aprovado: true, erro: 'Chave IA não configurada' };
+  // ✅ A chave fica no Worker — não verifica localmente
 
   
 

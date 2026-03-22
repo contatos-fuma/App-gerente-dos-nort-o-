@@ -191,15 +191,19 @@ async function rotaPlanoVerificar({ usuario }, env, cors) {
   const plano = await _buscarPlano(usuario, env);
   if (!plano) return json({ ok: false, motivo: 'nao_encontrado' }, 200, cors);
   const agora = Date.now();
+  // Normaliza plano_expira — Supabase pode retornar string ISO ou número ms
+  const _ms = v => v ? (typeof v === 'string' ? new Date(v).getTime() : Number(v)) : 0;
+  const planoExpiraMs = _ms(plano.plano_expira);
+  const trialExpiraMs = _ms(plano.trial_expira);
   if (plano.status === 'bloqueado') return json({ ok: false, motivo: 'bloqueado' }, 200, cors);
   if (plano.status === 'ativo') {
-    if (plano.plano_expira && agora > plano.plano_expira) { await _atualizarPlano(usuario, { status: 'expirado' }, env); return json({ ok: false, motivo: 'expirado' }, 200, cors); }
-    return json({ ok: true, status: 'ativo', diasRestantes: Math.ceil((plano.plano_expira - agora) / 86400000), expira: plano.plano_expira }, 200, cors);
+    if (planoExpiraMs && agora > planoExpiraMs) { await _atualizarPlano(usuario, { status: 'expirado' }, env); return json({ ok: false, motivo: 'expirado' }, 200, cors); }
+    return json({ ok: true, status: 'ativo', diasRestantes: Math.ceil((planoExpiraMs - agora) / 86400000), expira: planoExpiraMs }, 200, cors);
   }
   if (plano.status === 'trial') {
-    if (agora > plano.trial_expira) { await _atualizarPlano(usuario, { status: 'expirado' }, env); return json({ ok: false, motivo: 'trial_expirado' }, 200, cors); }
-    const horas = Math.ceil((plano.trial_expira - agora) / 3600000);
-    return json({ ok: true, status: 'trial', restante: horas + 'h', expira: plano.trial_expira }, 200, cors);
+    if (agora > trialExpiraMs) { await _atualizarPlano(usuario, { status: 'expirado' }, env); return json({ ok: false, motivo: 'trial_expirado' }, 200, cors); }
+    const horas = Math.ceil((trialExpiraMs - agora) / 3600000);
+    return json({ ok: true, status: 'trial', restante: horas + 'h', expira: trialExpiraMs }, 200, cors);
   }
   return json({ ok: false, motivo: plano.status || 'sem_plano' }, 200, cors);
 }
@@ -211,9 +215,15 @@ async function rotaPlanoAtivar({ adminHash, usuario, dias }, env, cors, ip) {
   // ✅ Soma ao tempo restante se o plano ainda estiver válido, senão conta do agora
   const planoAtual = await _buscarPlano(usuario, env);
   const agora = Date.now();
-  const baseExpira = (planoAtual && planoAtual.plano_expira && planoAtual.plano_expira > agora)
-    ? planoAtual.plano_expira  // ainda tem tempo — soma a partir daqui
-    : agora;                   // expirado ou sem plano — conta do zero
+  // Supabase pode retornar plano_expira como string ISO ou número ms — normaliza sempre
+  const expiraAtual = planoAtual?.plano_expira
+    ? (typeof planoAtual.plano_expira === 'string'
+        ? new Date(planoAtual.plano_expira).getTime()
+        : Number(planoAtual.plano_expira))
+    : 0;
+  const baseExpira = (expiraAtual && expiraAtual > agora)
+    ? expiraAtual  // ainda tem tempo — soma a partir daqui
+    : agora;       // expirado ou sem plano — conta do zero
 
   const expira = baseExpira + (parseInt(dias) || 30) * 86400000;
   await _atualizarPlano(usuario, { status: 'ativo', plano_expira: expira }, env);
@@ -231,7 +241,9 @@ async function rotaPlanoDesbloquear({ adminHash, usuario }, env, cors, ip) {
   if (_rateLimit('admin:' + ip, 20, 60_000)) return json({ ok: false, erro: 'Muitas tentativas' }, 429, cors);
   if (!(await _verificarAdmin(adminHash, env))) return json({ ok: false, erro: 'Não autorizado' }, 401, cors);
   const plano = await _buscarPlano(usuario, env);
-  const novoStatus = (plano && plano.plano_expira && plano.plano_expira > Date.now()) ? 'ativo' : 'trial';
+  const _ms = v => v ? (typeof v === 'string' ? new Date(v).getTime() : Number(v)) : 0;
+  const planoExpiraMs = _ms(plano?.plano_expira);
+  const novoStatus = (planoExpiraMs && planoExpiraMs > Date.now()) ? 'ativo' : 'trial';
   await _atualizarPlano(usuario, { status: novoStatus, ...(novoStatus === 'trial' ? { trial_expira: Date.now() + 36 * 3600000 } : {}) }, env);
   return json({ ok: true, status: novoStatus }, 200, cors);
 }

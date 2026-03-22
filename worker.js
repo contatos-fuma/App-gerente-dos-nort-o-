@@ -207,7 +207,15 @@ async function rotaPlanoVerificar({ usuario }, env, cors) {
 async function rotaPlanoAtivar({ adminHash, usuario, dias }, env, cors, ip) {
   if (_rateLimit('admin:' + ip, 20, 60_000)) return json({ ok: false, erro: 'Muitas tentativas' }, 429, cors);
   if (!(await _verificarAdmin(adminHash, env))) return json({ ok: false, erro: 'Não autorizado' }, 401, cors);
-  const expira = Date.now() + (parseInt(dias) || 30) * 86400000;
+
+  // ✅ Soma ao tempo restante se o plano ainda estiver válido, senão conta do agora
+  const planoAtual = await _buscarPlano(usuario, env);
+  const agora = Date.now();
+  const baseExpira = (planoAtual && planoAtual.plano_expira && planoAtual.plano_expira > agora)
+    ? planoAtual.plano_expira  // ainda tem tempo — soma a partir daqui
+    : agora;                   // expirado ou sem plano — conta do zero
+
+  const expira = baseExpira + (parseInt(dias) || 30) * 86400000;
   await _atualizarPlano(usuario, { status: 'ativo', plano_expira: expira }, env);
   return json({ ok: true, expira, dias: parseInt(dias) || 30 }, 200, cors);
 }

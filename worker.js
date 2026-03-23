@@ -360,7 +360,24 @@ async function _buscarPlano(usuario, env) {
 
 async function _atualizarPlano(usuario, dados, env) {
   const { supaUrl, supaKey } = supaConfig(env);
-  await fetch(`${supaUrl}/rest/v1/gerencia_planos`, { method: 'POST', headers: { 'Authorization': 'Bearer ' + supaKey, 'apikey': supaKey, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates' }, body: JSON.stringify({ usuario, ...dados, atualizado_em: new Date().toISOString() }) });
+  const headers = { 'Authorization': 'Bearer ' + supaKey, 'apikey': supaKey, 'Content-Type': 'application/json' };
+  const body = JSON.stringify({ ...dados, atualizado_em: new Date().toISOString() });
+
+  // Tenta PATCH (update) primeiro — só funciona se o registro já existir
+  const patch = await fetch(
+    `${supaUrl}/rest/v1/gerencia_planos?usuario=eq.${encodeURIComponent(usuario)}`,
+    { method: 'PATCH', headers: { ...headers, 'Prefer': 'return=minimal' }, body }
+  );
+
+  // Se não atualizou nenhuma linha (registro não existe), faz INSERT
+  const updated = patch.headers.get('content-range') || '';
+  if (patch.ok && updated === '*/0') {
+    await fetch(`${supaUrl}/rest/v1/gerencia_planos`, {
+      method: 'POST',
+      headers: { ...headers, 'Prefer': 'return=minimal' },
+      body: JSON.stringify({ usuario, ...dados, atualizado_em: new Date().toISOString() })
+    });
+  }
 }
 
 async function _verificarAdmin(senhaHash, env) {

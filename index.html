@@ -5387,6 +5387,12 @@ function _msgErroPagar(erro, status){
     return '🔑 Sessão expirada.\n\nFeche e abra o link novamente.';
   if(status === 429 || erro.includes('Muitas tentativas'))
     return '⏱️ Muitas tentativas em pouco tempo.\n\nAguarde 1 minuto e tente novamente.';
+  if(erro.includes('SUPA_URL') || erro.includes('SUPA_SERVICE_KEY') || erro.includes('configuração de banco'))
+    return '⚙️ Servidor sem configuração de banco de dados.\n\nO gerente precisa configurar as variáveis SUPA_URL e SUPA_SERVICE_KEY no Cloudflare Worker.';
+  if(erro.includes('Falha de conexão') || erro.includes('Falha ao salvar') || erro.includes('Falha'))
+    return '🔌 Falha de conexão com o banco de dados.\n\nTente novamente em instantes. Se persistir, contate o gerente.';
+  if(erro.includes('ler dados') || erro.includes('nulo') || erro.includes('inválido'))
+    return '📂 Dados corrompidos no servidor.\n\nContate o gerente para verificar o banco de dados.';
   if(status === 404 || erro.includes('nao encontrado') || erro.includes('não encontrado'))
     return '👤 Funcionário não encontrado no servidor.\n\nContate o gerente.';
   if(status === 502 || erro.includes('salvar') || erro.includes('buscar'))

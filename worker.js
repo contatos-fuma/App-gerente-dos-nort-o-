@@ -70,6 +70,7 @@ export default {
     try {
       switch (path) {
         case '/admin/login':       return await rotaAdminLogin(payload, env, cors, ip);
+        case '/admin/test-hash':   return await rotaTestHash(payload, env, cors);
         case '/ia/analisar':       return await rotaAnthropicAnalisar(payload, env, cors, ip);
         case '/zapi/texto':        return await rotaZapiTexto(payload, env, cors);
         case '/zapi/imagem':       return await rotaZapiImagem(payload, env, cors);

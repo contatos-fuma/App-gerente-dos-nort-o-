@@ -420,7 +420,7 @@ tr:last-child td{border-bottom:none}
 
 
 <!-- MODAL CONFIRMAÇÃO DE CAIXA (ao apagar saída ou PIX) -->
-<div id="modConfirmCaixa" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.7);z-index:99999;align-items:center;justify-content:center;padding:20px">
+<div id="modConfirmCaixa" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.7);z-index:999999;align-items:center;justify-content:center;padding:20px">
   <div style="background:#fff;width:100%;max-width:400px;border-radius:20px;padding:22px;box-shadow:0 24px 48px rgba(0,0,0,.3)">
     <div style="text-align:center;margin-bottom:16px">
       <div style="font-size:2rem;margin-bottom:6px" id="modConfirmCaixaIcon">💵</div>
@@ -5002,7 +5002,7 @@ async function confirmarPagamentoIA(){
     if(analise.valor_comprovante != null){
       const valorComp = Number(analise.valor_comprovante).toFixed(2).replace('.',',');
       const valorDecl = valor.toFixed(2).replace('.',',');
-      if(analise.valor_comprovante !== valor){
+      if(Math.abs(Number(analise.valor_comprovante) - valor) > 0.01){
         msg += '💰 Valor no comprovante: R$ ' + valorComp + '\n';
         msg += '💰 Valor declarado: R$ ' + valorDecl + '\n';
         msg += '⚠️ Os valores não coincidem!\n\n';
@@ -5042,17 +5042,21 @@ async function confirmarPagamentoIA(){
   const itensPix = itensSel.length > 0
     ? itensSel.map(([id,v])=>({ saidaId: id, valorPago: +v }))
     : null;
-  const [registrou] = await Promise.all([
-    registrarPagamentoFunc(valor, obs, itensPix),
-    (_analiseIA && _analiseIA.aprovado !== false)
-      ? salvarComprovanteBanco(_analiseIA, valor, nome, hashAtual)
-      : Promise.resolve(null)
-  ]);
+
+  // ⚠️ Registra o pagamento PRIMEIRO — só depois salva o comprovante no banco.
+  // Se salvar em paralelo e o pagamento falhar por internet, o registro órfão
+  // em comprovantes_pix faz a próxima tentativa ser bloqueada como "duplicada".
+  const registrou = await registrarPagamentoFunc(valor, obs, itensPix);
 
   if(!registrou){
     btn.disabled = false;
     btn.innerText = '✅ CONFIRMAR PAGAMENTO';
     return alert('❌ Erro ao registrar. Verifique sua conexão e tente novamente.');
+  }
+
+  // Pagamento confirmado — agora salva o comprovante para controle de duplicatas
+  if(_analiseIA && _analiseIA.aprovado !== false){
+    salvarComprovanteBanco(_analiseIA, valor, nome, hashAtual).catch(()=>{});
   }
 
   // 2. Recarrega saldo atualizado do Supabase
@@ -5274,6 +5278,11 @@ async function registrarPagamentoFunc(valor, obs, itensPix){
     }
 
     let urlFoto = null;
+
+    // Faz upload da foto para obter URL pública antes de registrar
+    if(_fotoBase64 && _fotoBase64.startsWith('data:') && !_fotoBase64.startsWith('pdf:') && _fotoBase64.length > 200){
+      try{ urlFoto = await uploadImagemSupabase(_fotoBase64); }catch(e){}
+    }
 
     // Calcula hash SHA-256 da imagem
     let hashComp = null;

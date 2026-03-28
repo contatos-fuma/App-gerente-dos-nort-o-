@@ -335,13 +335,18 @@ async function rotaFuncToken({ adminHash, usuario, funcNome, wppFunc }, env, cor
   if (_rateLimit('token:' + ip, 20, 60_000)) return json({ ok: false, erro: 'Muitas tentativas' }, 429, cors);
   if (!usuario) return json({ ok: false, erro: 'usuario obrigatorio' }, 400, cors);
 
-  // ✅ Aceita admin global OU qualquer gerente que existe no Supabase
+  // ✅ Tenta admin global primeiro (não depende de Supabase)
   const isAdmin = adminHash ? await _verificarAdmin(adminHash, env) : false;
   let autorizado = isAdmin;
 
   if (!autorizado) {
-    // Verifica se o usuario existe no Supabase (gerente valido)
     const { supaUrl, supaKey } = supaConfig(env);
+
+    if (!supaUrl || !supaKey) {
+      // Supabase não configurado — sem como verificar gerente, retorna erro claro
+      return json({ ok: false, erro: 'Banco nao configurado no servidor (SUPA_URL/SUPA_SERVICE_KEY)' }, 500, cors);
+    }
+
     try {
       // Tenta gerencia_usuarios primeiro
       const r1 = await fetch(
@@ -351,15 +356,13 @@ async function rotaFuncToken({ adminHash, usuario, funcNome, wppFunc }, env, cor
       if (r1.ok) {
         const rows = await r1.json();
         if (rows?.[0]) {
-          // Se tem senha salva, verifica o hash
           const senhaHash = rows[0].senha_hash || '';
           if (senhaHash && adminHash && senhaHash.length === adminHash.length) {
             let diff = 0;
             for (let i = 0; i < senhaHash.length; i++) diff |= senhaHash.charCodeAt(i) ^ adminHash.charCodeAt(i);
             autorizado = diff === 0;
           } else {
-            // Usuario existe mas sem senha salva — autoriza (usuario valido)
-            autorizado = true;
+            autorizado = true; // usuario existe sem senha salva
           }
         }
       }
@@ -371,10 +374,13 @@ async function rotaFuncToken({ adminHash, usuario, funcNome, wppFunc }, env, cor
         );
         if (r2.ok) {
           const rows2 = await r2.json();
-          if (rows2?.[0]) autorizado = true; // usuario tem dados salvos = valido
+          if (rows2?.[0]) autorizado = true;
         }
       }
-    } catch (e) {}
+    } catch (e) {
+      // Falha de conexão com Supabase — retorna erro específico em vez de "Nao autorizado"
+      return json({ ok: false, erro: 'Falha de conexao com banco: ' + e.message }, 502, cors);
+    }
   }
 
   if (!autorizado) return json({ ok: false, erro: 'Nao autorizado' }, 401, cors);

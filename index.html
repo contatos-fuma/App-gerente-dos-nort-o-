@@ -5186,7 +5186,7 @@ async function confirmarPagamentoIA(){
   _wppDiretoNum    = wppFinal;
   _wppDiretoFoto   = _urlFotoIA;
   _wppDiretoBase64 = (temFoto && _fotoBase64 && !_fotoBase64.startsWith('pdf:') && !_fotoBase64.startsWith('file:')) ? _fotoBase64 : null;
-  _wppDiretoMime   = _fotoMime || 'image/jpeg';
+  _wppDiretoMime   = (_fotoFile?.type) || 'image/jpeg';
 
   // 5. Tenta Z-API em background (texto apenas — foto é enviada pelo próprio funcionário)
   if(wppFinal){
@@ -5286,7 +5286,7 @@ async function _finalizarDepoisDoPagamento(valor, obs, nome, now, wpp){
   _wppDiretoNum    = wppFinal;
   _wppDiretoFoto   = urlFotoPublica;
   _wppDiretoBase64 = (temFoto && _fotoBase64 && !_fotoBase64.startsWith('pdf:') && !_fotoBase64.startsWith('file:')) ? _fotoBase64 : null;
-  _wppDiretoMime   = _fotoMime || 'image/jpeg';
+  _wppDiretoMime   = (_fotoFile?.type) || 'image/jpeg';
   if(wppFinal){
     // ⚠️ NÃO adicionar '55' aqui — o Worker já adiciona internamente
     const telLimpo = String(wppFinal).replace(/\D/g,'');

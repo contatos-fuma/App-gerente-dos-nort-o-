@@ -290,15 +290,21 @@ async function rotaStorageUpload({ base64, mime }, env, cors) {
   }
 
   // Gera URL assinada com validade de 30 dias (só quem receber o link consegue ver)
-  const expiresIn = 60 * 60 * 24 * 30; // 30 dias em segundos
-  const signResp = await fetch(
-    `${supaUrl}/storage/v1/object/sign/comprovantes/${fileName}`,
-    { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify({ expiresIn }) }
-  );
-  if (signResp.ok) {
-    const signData = await signResp.json();
-    const signedUrl = supaUrl + '/storage/v1' + signData.signedURL;
-    return json({ ok: true, url: signedUrl }, 200, cors);
+  try {
+    const expiresIn = 60 * 60 * 24 * 30; // 30 dias em segundos
+    const signResp = await fetch(
+      `${supaUrl}/storage/v1/object/sign/comprovantes/${fileName}`,
+      { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify({ expiresIn }), signal: AbortSignal.timeout(5000) }
+    );
+    if (signResp.ok) {
+      const signData = await signResp.json();
+      // signedURL já inclui /storage/v1/... então não duplicamos o prefixo
+      const path = signData.signedURL || signData.signedUrl || '';
+      const signedUrl = path.startsWith('http') ? path : supaUrl + path;
+      return json({ ok: true, url: signedUrl }, 200, cors);
+    }
+  } catch (e) {
+    console.warn('[STORAGE] assinatura falhou:', e.message);
   }
 
   // Fallback: se não conseguir assinar, retorna sem URL (não expõe arquivo)

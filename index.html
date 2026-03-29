@@ -5371,9 +5371,14 @@ async function registrarPagamentoFunc(valor, obs, itensPix){
 
     let urlFoto = null;
 
-    // Faz upload da foto para obter URL pública antes de registrar
+    // Faz upload da foto com timeout de 8s — não bloqueia o registro se demorar
     if(_fotoBase64 && _fotoBase64.startsWith('data:') && !_fotoBase64.startsWith('pdf:') && _fotoBase64.length > 200){
-      try{ urlFoto = await uploadImagemSupabase(_fotoBase64); }catch(e){}
+      try{
+        urlFoto = await Promise.race([
+          uploadImagemSupabase(_fotoBase64),
+          new Promise(r => setTimeout(() => r(null), 8000))
+        ]);
+      }catch(e){}
     }
 
     // Calcula hash SHA-256 da imagem

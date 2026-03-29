@@ -5079,7 +5079,7 @@ async function confirmarPagamentoIA(){
   btn.innerText = '⏳ Registrando...';
   btnWpp.style.display = 'none';
 
-  // Timeout de segurança: libera o botão se o servidor não responder em 35s
+  // Timeout de segurança: se travar por mais de 35s, mostra erro e libera botão
   const _regTimeout = setTimeout(() => {
     btn.disabled = false;
     btn.innerText = '✅ CONFIRMAR PAGAMENTO';

@@ -277,10 +277,10 @@ async function rotaStorageUpload({ base64, mime }, env, cors) {
     body: JSON.stringify({ id: 'comprovantes', name: 'comprovantes', public: false })
   }).catch(() => {});
 
-  // Faz o upload (timeout 15s)
+  // Faz o upload
   const uploadResp = await fetch(
     `${supaUrl}/storage/v1/object/comprovantes/${fileName}`,
-    { method: 'POST', headers: { ...headers, 'Content-Type': mimeSeguro, 'x-upsert': 'true' }, body: bytes, signal: AbortSignal.timeout(15000) }
+    { method: 'POST', headers: { ...headers, 'Content-Type': mimeSeguro, 'x-upsert': 'true' }, body: bytes }
   );
 
   if (!uploadResp.ok) {
@@ -293,7 +293,7 @@ async function rotaStorageUpload({ base64, mime }, env, cors) {
   const expiresIn = 60 * 60 * 24 * 30; // 30 dias em segundos
   const signResp = await fetch(
     `${supaUrl}/storage/v1/object/sign/comprovantes/${fileName}`,
-    { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify({ expiresIn }), signal: AbortSignal.timeout(5000) }
+    { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify({ expiresIn }) }
   );
   if (signResp.ok) {
     const signData = await signResp.json();

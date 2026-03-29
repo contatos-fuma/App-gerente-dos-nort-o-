@@ -297,7 +297,8 @@ async function rotaStorageUpload({ base64, mime }, env, cors) {
   );
   if (signResp.ok) {
     const signData = await signResp.json();
-    const signedUrl = supaUrl + '/storage/v1' + signData.signedURL;
+    const rawPath = signData.signedURL || signData.signedUrl || '';
+    const signedUrl = rawPath.startsWith('http') ? rawPath : supaUrl + rawPath;
     return json({ ok: true, url: signedUrl }, 200, cors);
   }
 

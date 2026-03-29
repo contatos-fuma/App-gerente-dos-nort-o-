@@ -290,21 +290,15 @@ async function rotaStorageUpload({ base64, mime }, env, cors) {
   }
 
   // Gera URL assinada com validade de 30 dias (só quem receber o link consegue ver)
-  try {
-    const expiresIn = 60 * 60 * 24 * 30; // 30 dias em segundos
-    const signResp = await fetch(
-      `${supaUrl}/storage/v1/object/sign/comprovantes/${fileName}`,
-      { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify({ expiresIn }), signal: AbortSignal.timeout(5000) }
-    );
-    if (signResp.ok) {
-      const signData = await signResp.json();
-      // signedURL já inclui /storage/v1/... então não duplicamos o prefixo
-      const path = signData.signedURL || signData.signedUrl || '';
-      const signedUrl = path.startsWith('http') ? path : supaUrl + path;
-      return json({ ok: true, url: signedUrl }, 200, cors);
-    }
-  } catch (e) {
-    console.warn('[STORAGE] assinatura falhou:', e.message);
+  const expiresIn = 60 * 60 * 24 * 30; // 30 dias em segundos
+  const signResp = await fetch(
+    `${supaUrl}/storage/v1/object/sign/comprovantes/${fileName}`,
+    { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify({ expiresIn }) }
+  );
+  if (signResp.ok) {
+    const signData = await signResp.json();
+    const signedUrl = supaUrl + '/storage/v1' + signData.signedURL;
+    return json({ ok: true, url: signedUrl }, 200, cors);
   }
 
   // Fallback: se não conseguir assinar, retorna sem URL (não expõe arquivo)
@@ -450,12 +444,11 @@ async function rotaFuncPagar({ token, valor, obs, analiseIA, hashComprovante, ur
   const { supaUrl, supaKey } = supaConfig(env);
   if (!supaUrl || !supaKey) return json({ ok: false, erro: 'Servidor sem configuração de banco de dados (SUPA_URL/SUPA_SERVICE_KEY)' }, 500, cors);
 
-  // Busca dados do gerente no Supabase (timeout 10s)
+  // Busca dados do gerente no Supabase
   let rows;
   try {
     const getResp = await fetch(`${supaUrl}/rest/v1/gerencia_dados?usuario=eq.${encodeURIComponent(usuario)}&limit=1`, {
-      headers: { 'Authorization': 'Bearer ' + supaKey, 'apikey': supaKey },
-      signal: AbortSignal.timeout(10000)
+      headers: { 'Authorization': 'Bearer ' + supaKey, 'apikey': supaKey }
     });
     if (!getResp.ok) return json({ ok: false, erro: 'Erro ao buscar dados (HTTP ' + getResp.status + ')' }, 502, cors);
     rows = await getResp.json();
@@ -501,13 +494,12 @@ async function rotaFuncPagar({ token, valor, obs, analiseIA, hashComprovante, ur
   const body = JSON.stringify({ usuario, dados: JSON.stringify(dados), atualizado_em: new Date().toISOString() });
 
   try {
-    const sig = AbortSignal.timeout(12000);
-    const patchResp = await fetch(`${supaUrl}/rest/v1/gerencia_dados?usuario=eq.${encodeURIComponent(usuario)}`, { method: 'PATCH', headers, body, signal: sig });
+    const patchResp = await fetch(`${supaUrl}/rest/v1/gerencia_dados?usuario=eq.${encodeURIComponent(usuario)}`, { method: 'PATCH', headers, body });
     const contentRange = patchResp.headers.get('content-range') || '';
 
     // Se PATCH não atualizou nenhuma linha, faz INSERT
     if (patchResp.ok && contentRange === '*/0') {
-      const postResp = await fetch(`${supaUrl}/rest/v1/gerencia_dados`, { method: 'POST', headers, body, signal: AbortSignal.timeout(12000) });
+      const postResp = await fetch(`${supaUrl}/rest/v1/gerencia_dados`, { method: 'POST', headers, body });
       if (!postResp.ok) return json({ ok: false, erro: 'Erro ao salvar pagamento (INSERT HTTP ' + postResp.status + ')' }, 502, cors);
     } else if (!patchResp.ok) {
       return json({ ok: false, erro: 'Erro ao salvar pagamento (PATCH HTTP ' + patchResp.status + ')' }, 502, cors);

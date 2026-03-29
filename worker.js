@@ -51,6 +51,21 @@ export default {
       return json({ ok: true }, 200, cors);
     }
 
+    if (req.method === 'GET' && path === '/status') {
+      return json({
+        ok: true,
+        vars: {
+          SUPA_URL:          env.SUPA_URL          ? '✅ ' + String(env.SUPA_URL).slice(0, 30) + '...' : '❌ NÃO CONFIGURADO',
+          SUPA_SERVICE_KEY:  env.SUPA_SERVICE_KEY  ? '✅ configurado (' + String(env.SUPA_SERVICE_KEY).length + ' chars)' : '❌ NÃO CONFIGURADO',
+          ANTHROPIC_KEY:     env.ANTHROPIC_KEY     ? '✅ configurado (' + String(env.ANTHROPIC_KEY).length + ' chars)' : '❌ NÃO CONFIGURADO',
+          ADMIN_SENHA_HASH:  env.ADMIN_SENHA_HASH  ? '✅ configurado' : '❌ NÃO CONFIGURADO',
+          JWT_SECRET:        env.JWT_SECRET        ? '✅ configurado' : '❌ NÃO CONFIGURADO',
+          ZAPI_INSTANCE:     env.ZAPI_INSTANCE     ? '✅ configurado' : '⚠️ não configurado (opcional)',
+          ZAPI_TOKEN:        env.ZAPI_TOKEN        ? '✅ configurado' : '⚠️ não configurado (opcional)',
+        }
+      }, 200, cors);
+    }
+
 
     if (req.method !== 'POST') return json({ error: 'Método não permitido' }, 405, cors);
 

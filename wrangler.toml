@@ -1,3 +1,3 @@
-name = "app-gerente-dos-nort-o"
-pages_build_output_dir = "."
+name = "tropagestao"
+main = "worker.js"
 compatibility_date = "2026-03-20"

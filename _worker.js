@@ -67,6 +67,12 @@ export default {
     }
 
 
+    // Rotas de API conhecidas — tudo fora disso serve o arquivo estático
+    const apiPaths = ['/admin/login','/admin/test-hash','/ia/analisar','/zapi/texto','/zapi/imagem','/storage/upload','/plano/verificar','/plano/ativar','/plano/bloquear','/plano/desbloquear','/func/token','/func/verificar','/func/pagar'];
+    if (!apiPaths.includes(path)) {
+      return env.ASSETS.fetch(req);
+    }
+
     if (req.method !== 'POST') return json({ error: 'Método não permitido' }, 405, cors);
 
     const contentLength = parseInt(req.headers.get('content-length') || '0');

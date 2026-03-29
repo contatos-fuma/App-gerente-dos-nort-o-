@@ -5394,16 +5394,20 @@ async function registrarPagamentoFunc(valor, obs, itensPix){
       }catch(e){}
     }
 
-    // Tenta até 2 vezes (retry automático em erro de rede transitório)
+    // Tenta até 2 vezes com timeout de 20s cada
     const bodyPagar = JSON.stringify({ token, valor, obs: obs || '', analiseIA: _analiseIA || null, hashComprovante: hashComp, urlFoto, itensPix: itensPix || null });
     let resp = null;
     for(let t = 0; t < 2; t++){
       try{
+        const ctrl = new AbortController();
+        const tid = setTimeout(() => ctrl.abort(), 20000);
         resp = await fetch(`${WORKER_URL}/func/pagar`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: bodyPagar
+          body: bodyPagar,
+          signal: ctrl.signal
         });
+        clearTimeout(tid);
         break;
       }catch(netErr){
         console.warn('[PAGAR] tentativa', t+1, netErr.message);

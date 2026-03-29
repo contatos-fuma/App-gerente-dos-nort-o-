@@ -5126,6 +5126,16 @@ async function confirmarPagamentoIA(){
   btn.innerText = '⏳ Registrando...';
   btnWpp.style.display = 'none';
 
+  // Timeout de segurança: se travar por mais de 35s, mostra erro
+  const _regTimeout = setTimeout(() => {
+    btn.disabled = false;
+    btn.innerText = '✅ CONFIRMAR PAGAMENTO';
+    btn.style.background = '#16a34a';
+    alert('❌ Tempo esgotado.\n\nO servidor demorou mais de 35 segundos para responder.\n\nVerifique:\n• Sua conexão com a internet\n• Se o Supabase está acessível\n\nTente novamente.');
+  }, 35000);
+
+  try {
+
   // 1. Registra o pagamento no servidor
   // Monta array de itensPix para salvar no histórico
   const itensPix = itensSel.length > 0
@@ -5136,12 +5146,14 @@ async function confirmarPagamentoIA(){
   // Se salvar em paralelo e o pagamento falhar por internet, o registro órfão
   // em comprovantes_pix faz a próxima tentativa ser bloqueada como "duplicada".
   const registrou = await registrarPagamentoFunc(valor, obs, itensPix);
+  clearTimeout(_regTimeout);
 
   if(!registrou.ok){
     btn.disabled = false;
     btn.innerText = '✅ CONFIRMAR PAGAMENTO';
     btn.style.background = '#16a34a';
-    return alert('❌ Erro ao registrar.\n\n' + _msgErroPagar(registrou.erro, registrou.status));
+    alert('❌ Erro ao registrar.\n\n' + _msgErroPagar(registrou.erro, registrou.status) + '\n\nCódigo: ' + (registrou.erro||'?'));
+    return;
   }
 
   // Pagamento confirmado — agora salva o comprovante para controle de duplicatas
@@ -5273,6 +5285,13 @@ async function confirmarPagamentoIA(){
           ✕ Fechar
         </button>
       </div>`;
+  }
+  } catch(errGlobal) {
+    clearTimeout(_regTimeout);
+    btn.disabled = false;
+    btn.innerText = '✅ CONFIRMAR PAGAMENTO';
+    btn.style.background = '#16a34a';
+    alert('❌ Erro inesperado: ' + (errGlobal.message || errGlobal));
   }
 }
 
@@ -5441,16 +5460,20 @@ async function registrarPagamentoFunc(valor, obs, itensPix){
       }catch(e){}
     }
 
-    // Tenta até 2 vezes (retry automático em erro de rede transitório)
+    // Tenta até 2 vezes com timeout de 20s cada
     const bodyPagar = JSON.stringify({ token, valor, obs: obs || '', analiseIA: _analiseIA || null, hashComprovante: hashComp, urlFoto, itensPix: itensPix || null });
     let resp = null;
     for(let t = 0; t < 2; t++){
       try{
+        const ctrl = new AbortController();
+        const tid = setTimeout(() => ctrl.abort(), 20000);
         resp = await fetch(`${WORKER_URL}/func/pagar`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: bodyPagar
+          body: bodyPagar,
+          signal: ctrl.signal
         });
+        clearTimeout(tid);
         break;
       }catch(netErr){
         console.warn('[PAGAR] tentativa', t+1, netErr.message);

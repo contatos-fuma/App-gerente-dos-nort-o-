@@ -444,11 +444,12 @@ async function rotaFuncPagar({ token, valor, obs, analiseIA, hashComprovante, ur
   const { supaUrl, supaKey } = supaConfig(env);
   if (!supaUrl || !supaKey) return json({ ok: false, erro: 'Servidor sem configuração de banco de dados (SUPA_URL/SUPA_SERVICE_KEY)' }, 500, cors);
 
-  // Busca dados do gerente no Supabase
+  // Busca dados do gerente no Supabase (timeout 10s)
   let rows;
   try {
     const getResp = await fetch(`${supaUrl}/rest/v1/gerencia_dados?usuario=eq.${encodeURIComponent(usuario)}&limit=1`, {
-      headers: { 'Authorization': 'Bearer ' + supaKey, 'apikey': supaKey }
+      headers: { 'Authorization': 'Bearer ' + supaKey, 'apikey': supaKey },
+      signal: AbortSignal.timeout(10000)
     });
     if (!getResp.ok) return json({ ok: false, erro: 'Erro ao buscar dados (HTTP ' + getResp.status + ')' }, 502, cors);
     rows = await getResp.json();
@@ -494,12 +495,12 @@ async function rotaFuncPagar({ token, valor, obs, analiseIA, hashComprovante, ur
   const body = JSON.stringify({ usuario, dados: JSON.stringify(dados), atualizado_em: new Date().toISOString() });
 
   try {
-    const patchResp = await fetch(`${supaUrl}/rest/v1/gerencia_dados?usuario=eq.${encodeURIComponent(usuario)}`, { method: 'PATCH', headers, body });
+    const patchResp = await fetch(`${supaUrl}/rest/v1/gerencia_dados?usuario=eq.${encodeURIComponent(usuario)}`, { method: 'PATCH', headers, body, signal: AbortSignal.timeout(12000) });
     const contentRange = patchResp.headers.get('content-range') || '';
 
     // Se PATCH não atualizou nenhuma linha, faz INSERT
     if (patchResp.ok && contentRange === '*/0') {
-      const postResp = await fetch(`${supaUrl}/rest/v1/gerencia_dados`, { method: 'POST', headers, body });
+      const postResp = await fetch(`${supaUrl}/rest/v1/gerencia_dados`, { method: 'POST', headers, body, signal: AbortSignal.timeout(12000) });
       if (!postResp.ok) return json({ ok: false, erro: 'Erro ao salvar pagamento (INSERT HTTP ' + postResp.status + ')' }, 502, cors);
     } else if (!patchResp.ok) {
       return json({ ok: false, erro: 'Erro ao salvar pagamento (PATCH HTTP ' + patchResp.status + ')' }, 502, cors);

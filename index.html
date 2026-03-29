@@ -180,8 +180,11 @@ tr:last-child td{border-bottom:none}
       <button onclick="abrirEnvioComprovante()" style="width:100%;padding:16px;background:#25d366;color:#fff;border:none;border-radius:16px;font-weight:800;font-size:1rem;cursor:pointer;margin-bottom:10px;box-shadow:0 4px 16px rgba(37,211,102,.3)">
         💸 ENVIAR COMPROVANTE DE PIX
       </button>
-      <button onclick="abrirGaleriaFunc()" style="width:100%;padding:12px;background:rgba(255,255,255,.08);color:#94a3b8;border:1px solid rgba(255,255,255,.15);border-radius:14px;font-weight:700;font-size:.82rem;cursor:pointer;margin-bottom:12px">
+      <button onclick="abrirGaleriaFunc()" style="width:100%;padding:12px;background:rgba(255,255,255,.08);color:#94a3b8;border:1px solid rgba(255,255,255,.15);border-radius:14px;font-weight:700;font-size:.82rem;cursor:pointer;margin-bottom:10px">
         🖼️ VER MEUS COMPROVANTES
+      </button>
+      <button onclick="enviarSaldoParaGerente()" style="width:100%;padding:12px;background:rgba(59,130,246,.15);color:#60a5fa;border:1px solid rgba(59,130,246,.3);border-radius:14px;font-weight:700;font-size:.82rem;cursor:pointer;margin-bottom:12px">
+        📊 ENVIAR MEU SALDO AO GERENTE
       </button>
     </div>
 
@@ -1291,11 +1294,15 @@ async function _uploadBlobSupabase(blob, mime){
 
 async function _uploadBase64ViaWorker(base64, mime){
   try{
+    const ctrl = new AbortController();
+    const tid = setTimeout(() => ctrl.abort(), 25000);
     const resp = await fetch(`${WORKER_URL}/storage/upload`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ base64, mime: mime || 'image/jpeg' })
+      body: JSON.stringify({ base64, mime: mime || 'image/jpeg' }),
+      signal: ctrl.signal
     });
+    clearTimeout(tid);
     const data = await resp.json().catch(()=>({}));
     if(!resp.ok || !data.ok){
       console.error('[UPLOAD-WORKER] erro:', resp.status, data.error || '');
@@ -5372,6 +5379,44 @@ function enviarWppDireto(){
   window.open('https://wa.me/'+phone+'?text='+encodeURIComponent(msg), '_blank');
 }
 
+function enviarSaldoParaGerente(){
+  if(!_funcAtual){ alert('⚠️ Dados ainda carregando. Aguarde.'); return; }
+  const num = (_funcAtual._wppGerenteAtual||'').trim() || (_funcAtual.wppGerente||'').trim();
+  if(!num){ alert('⚠️ Número do gerente não cadastrado.\nPeça ao gerente para salvar o número nas configurações.'); return; }
+
+  const nome    = _funcAtual.funcNome || '';
+  const saldo   = _funcAtual._saldoAtual || 0;
+  const hist    = _funcAtual._historicoCompleto || [];
+  const now     = new Date().toLocaleString('pt-BR');
+  const mesAtual = new Date().toLocaleDateString('pt-BR').slice(3);
+
+  let linhasMerc = '', linhasPag = '', totalMerc = 0, totalPago = 0;
+  hist.filter(h => (h.data||'').slice(3) === mesAtual)
+    .sort((a,b) => new Date(a.data.split('/').reverse().join('-')) - new Date(b.data.split('/').reverse().join('-')))
+    .forEach(h => {
+      if(h.tipo === 'saida'){ linhasMerc += '🔸 ' + h.desc + ' ➜ *' + fmt(h.valor) + '* (' + h.data + ')\n'; totalMerc += h.valor; }
+      else { linhasPag += '✅ *' + fmt(h.valor) + '* (' + h.data + ')\n'; totalPago += h.valor; }
+    });
+
+  const mesLabel = new Date().toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+  const mesCapital = mesLabel.charAt(0).toUpperCase() + mesLabel.slice(1);
+
+  let msg = '📊 *RELATÓRIO DE SALDO — Gestão Inteligente*\n\n';
+  msg += '👤 *' + nome + '*\n';
+  msg += '🕐 ' + now + '\n\n';
+  msg += '📋 *' + mesCapital.toUpperCase() + '*\n';
+  if(linhasMerc) msg += '\n📦 *Mercadorias:*\n' + linhasMerc;
+  if(linhasPag)  msg += '\n💰 *Pagamentos:*\n' + linhasPag;
+  msg += '\n📊 Entregue: *' + fmt(totalMerc) + '*\n';
+  msg += '💰 Pago: *' + fmt(totalPago) + '*\n';
+  msg += '❗ Falta: *' + fmt(Math.max(0, totalMerc - totalPago)) + '*\n\n';
+  msg += '💳 *Saldo devedor: ' + fmt(saldo) + '*\n';
+  msg += (saldo > 0 ? '⚠️ Ainda possui débito.' : '✅ Conta quitada!');
+
+  const phone = '55' + String(num).replace(/\D/g, '');
+  window.open('https://wa.me/' + phone + '?text=' + encodeURIComponent(msg), '_blank');
+}
+
 async function registrarPagamentoFunc(valor, obs, itensPix){
   try{
     // Pega token JWT — tenta URL primeiro, depois memória
@@ -5395,7 +5440,7 @@ async function registrarPagamentoFunc(valor, obs, itensPix){
       try{
         urlFoto = await Promise.race([
           uploadImagemSupabase(_fotoBase64),
-          new Promise(r => setTimeout(() => r(null), 8000))
+          new Promise(r => setTimeout(() => r(null), 25000))
         ]);
       }catch(e){}
     }

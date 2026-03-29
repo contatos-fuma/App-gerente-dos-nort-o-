@@ -5218,9 +5218,11 @@ async function confirmarPagamentoIA(){
 
   // Guarda para botão de envio direto
   const _urlFotoIA = _funcAtual._urlFotoAtual || null;
-  _wppDiretoMsg  = msgWpp;
-  _wppDiretoNum  = wppFinal;
-  _wppDiretoFoto = _urlFotoIA;
+  _wppDiretoMsg    = msgWpp;
+  _wppDiretoNum    = wppFinal;
+  _wppDiretoFoto   = _urlFotoIA;
+  _wppDiretoBase64 = (temFoto && _fotoBase64 && !_fotoBase64.startsWith('pdf:') && !_fotoBase64.startsWith('file:')) ? _fotoBase64 : null;
+  _wppDiretoMime   = _fotoMime || 'image/jpeg';
 
   // 5. Tenta Z-API em background (texto apenas — foto é enviada pelo próprio funcionário)
   if(wppFinal){
@@ -5275,9 +5277,11 @@ async function confirmarPagamentoIA(){
 }
 
 // Guarda a mensagem, número e foto para o botão de envio direto
-let _wppDiretoMsg = '';
-let _wppDiretoNum = '';
-let _wppDiretoFoto = null;
+let _wppDiretoMsg    = '';
+let _wppDiretoNum    = '';
+let _wppDiretoFoto   = null;
+let _wppDiretoBase64 = null; // base64 da foto para compartilhar como imagem real
+let _wppDiretoMime   = 'image/jpeg';
 
 // Alias para compatibilidade com o fluxo sem IA
 async function _finalizarDepoisDoPagamento(valor, obs, nome, now, wpp){
@@ -5306,7 +5310,11 @@ async function _finalizarDepoisDoPagamento(valor, obs, nome, now, wpp){
   _funcAtual._urlFotoAtual = null;
   const temFoto = !!_fotoBase64 && !_fotoBase64.startsWith('pdf:');
   const msgWpp = '🚩 *PIX CONFIRMADO — Gestão Inteligente*\n\n👤 *'+nome+'*\n💰 Valor pago: *'+fmt(valor)+'*\n'+(obs?'📝 '+obs+'\n':'')+'🕐 '+now+'\n💳 Saldo devedor: *'+fmt(saldoFinal)+'*\n'+(saldoFinal>0?'⚠️ Ainda possui débito.':'✅ Conta quitada!');
-  _wppDiretoMsg = msgWpp; _wppDiretoNum = wppFinal; _wppDiretoFoto = urlFotoPublica;
+  _wppDiretoMsg    = msgWpp;
+  _wppDiretoNum    = wppFinal;
+  _wppDiretoFoto   = urlFotoPublica;
+  _wppDiretoBase64 = (temFoto && _fotoBase64 && !_fotoBase64.startsWith('pdf:') && !_fotoBase64.startsWith('file:')) ? _fotoBase64 : null;
+  _wppDiretoMime   = _fotoMime || 'image/jpeg';
   if(wppFinal){
     // ⚠️ NÃO adicionar '55' aqui — o Worker já adiciona internamente
     const telLimpo = String(wppFinal).replace(/\D/g,'');
@@ -5350,13 +5358,28 @@ async function _enviarWppComFoto(){
     alert('⚠️ Número do gerente não encontrado.\nSalve o WhatsApp na aba ⚙️ > Meu WhatsApp.');
     return;
   }
-  // Inclui link do comprovante na mensagem para o gerente visualizar com um toque
-  let msg = _wppDiretoMsg;
-  if(_wppDiretoFoto){
-    msg += '\n\n📎 *Ver comprovante:*\n' + _wppDiretoFoto;
+
+  // Tenta compartilhar a foto como imagem real (Web Share API)
+  if(_wppDiretoBase64 && navigator.canShare){
+    try{
+      const mime = _wppDiretoMime || 'image/jpeg';
+      const ext  = mime.includes('png') ? 'png' : 'jpg';
+      const blob = await fetch('data:' + mime + ';base64,' + _wppDiretoBase64).then(r => r.blob());
+      const file = new File([blob], 'comprovante.' + ext, { type: mime });
+      if(navigator.canShare({ files: [file] })){
+        await navigator.share({ files: [file], text: _wppDiretoMsg });
+        _wppDiretoBase64 = null; // limpa após envio único
+        return;
+      }
+    }catch(e){
+      if(e.name === 'AbortError') return; // usuário cancelou
+      // falha → segue para fallback
+    }
   }
+
+  // Fallback: abre WhatsApp com texto (sem foto)
   const phone = '55' + String(num).replace(/\D/g,'');
-  window.open('https://wa.me/' + phone + '?text=' + encodeURIComponent(msg), '_blank');
+  window.open('https://wa.me/' + phone + '?text=' + encodeURIComponent(_wppDiretoMsg), '_blank');
 }
 
 function _mostrarBtnWppDireto(msg, num){

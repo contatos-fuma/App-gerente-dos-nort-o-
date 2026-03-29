@@ -3832,23 +3832,8 @@ function delEst(id){
   const p = D.estoque.find(x=>x.id===id);
   if(!p) return;
   if(!confirm('Apagar item "'+p.nome+'" do estoque?\n\nIrreversível!')) return;
-
-  const custoTotal = (p.qtd||0) * (p.custo||0);
   D.estoque = D.estoque.filter(x=>x.id!==id);
-
-  // ✅ Pergunta se quer estornar o custo do caixa (só se tiver qtd e custo)
-  if(custoTotal > 0){
-    const estornar = confirm(
-      '💰 Este item tinha custo total de '+fmt(custoTotal)+'.\n\n' +
-      'Deseja estornar esse valor no Caixa?\n\n' +
-      '✅ OK = Devolve '+fmt(custoTotal)+' ao Caixa\n' +
-      '❌ Cancelar = Só remove o item, caixa fica igual'
-    );
-    if(estornar) D.recebido += custoTotal;
-  }
-
   save();
-  render(); // ✅ Força atualização imediata da tela principal
 }
 function delFunc(i){
   const c = D.clientes[i];
@@ -3969,6 +3954,7 @@ async function delSaida(ci, saidaId, valor){
 }
 
 async function delPix(ci, pixId, valor){
+  if(!confirm('Apagar pagamento de '+fmt(valor)+'?\n\nO valor voltará ao saldo devedor do funcionário. O caixa não será alterado.')) return;
   const c = D.clientes[ci]; if(!c) return;
 
   let idx = -1;
@@ -3981,42 +3967,9 @@ async function delPix(ci, pixId, valor){
     idx = candidatos[candidatos.length-1].i;
   }
   const h = c.historico[idx];
+  c.historico.splice(idx, 1);
 
-  // ✅ Pergunta ao gerente o que fazer com o caixa
-  _abrirModalOpcao({
-    icone: '💸',
-    titulo: 'Como apagar este pagamento?',
-    desc: fmt(valor) + ' — ' + (h.desc||'PIX') + ' · ' + (h.data||''),
-    info: fmt(D.recebido),
-    infoLabel: 'Saldo atual do Caixa',
-    infoCor: '#16a34a',
-    opcoes: [
-      {
-        label: '💰 Remover e descontar do Caixa',
-        desc: 'Apaga o PIX e desconta ' + fmt(valor) + ' do caixa',
-        cor: '#b45309', bg: '#fffbeb', border: '#fde68a',
-        acao: async () => {
-          c.historico.splice(idx, 1);
-          D.recebido = Math.max(0, D.recebido - valor);
-          await _salvarDepoisDelPix(ci, c, h);
-        }
-      },
-      {
-        label: '📋 Remover só do registro',
-        desc: 'Apaga o PIX, saldo do funcionário volta, caixa fica igual',
-        cor: '#dc2626', bg: '#fef2f2', border: '#fecaca',
-        acao: async () => {
-          c.historico.splice(idx, 1);
-          // caixa não é alterado
-          await _salvarDepoisDelPix(ci, c, h);
-        }
-      }
-    ]
-  });
-}
-
-async function _salvarDepoisDelPix(ci, c, h){
-  // Recalcula saldo do funcionário
+  // Só recalcula saldo do funcionário — caixa não é alterado
   let saldo = 0;
   c.historico.forEach(item=>{
     if(item.tipo==='saida')        saldo += item.valor||0;
@@ -4039,8 +3992,8 @@ async function _salvarDepoisDelPix(ci, c, h){
       }, { onConflict: 'usuario' });
       if(error) throw error;
       setSyncStatus('☁️ Salvo ✓','#4ade80');
-      if(h && h.hashComprovante) await supa.from('comprovantes_pix').delete().eq('usuario',_usuario).eq('func_nome',c.nome).eq('hash_img',h.hashComprovante).catch(()=>{});
-      if(h && h.idTransacao)     await supa.from('comprovantes_pix').delete().eq('usuario',_usuario).eq('id_transacao',h.idTransacao).catch(()=>{});
+      if(h.hashComprovante) await supa.from('comprovantes_pix').delete().eq('usuario',_usuario).eq('func_nome',c.nome).eq('hash_img',h.hashComprovante).catch(()=>{});
+      if(h.idTransacao)     await supa.from('comprovantes_pix').delete().eq('usuario',_usuario).eq('id_transacao',h.idTransacao).catch(()=>{});
     }catch(e){
       setSyncStatus('⚠️ Erro ao salvar','#f87171');
       console.error('[DEL_PIX]', e);

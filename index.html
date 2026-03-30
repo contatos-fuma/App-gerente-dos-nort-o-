@@ -380,10 +380,22 @@ tr:last-child td{border-bottom:none}
     </div>
 
     <!-- Pagamentos por dia — mini gráfico de barras -->
-    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;padding:14px">
+    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;padding:14px;margin-bottom:12px">
       <div style="font-size:.65rem;font-weight:800;color:#475569;text-transform:uppercase;letter-spacing:.05em;margin-bottom:12px">📅 Recebido por Dia (últimos 14 dias)</div>
       <div id="dashGrafico" style="display:flex;align-items:flex-end;gap:4px;height:80px;overflow-x:auto;padding-bottom:4px"></div>
       <div id="dashGraficoLabels" style="display:flex;gap:4px;margin-top:4px;overflow-x:auto"></div>
+    </div>
+
+    <!-- Todas as Entregas -->
+    <div style="background:#1e293b;border-radius:14px;padding:14px;margin-bottom:12px">
+      <div style="font-size:.65rem;font-weight:800;color:#f97316;text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px">📦 Todas as Entregas</div>
+      <div id="dashEntregas" style="max-height:320px;overflow-y:auto"></div>
+    </div>
+
+    <!-- Todos os PIX Recebidos -->
+    <div style="background:#1e293b;border-radius:14px;padding:14px;margin-bottom:12px">
+      <div style="font-size:.65rem;font-weight:800;color:#4ade80;text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px">💸 Todos os PIX Recebidos</div>
+      <div id="dashPixRecebidos" style="max-height:320px;overflow-y:auto"></div>
     </div>
   </div>
 </div>
@@ -1111,7 +1123,7 @@ const SUPA_URL = 'https://hbtmyrmxfhctufiripwy.supabase.co';
 const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhidG15cm14ZmhjdHVmaXJpcHd5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM3ODM1ODMsImV4cCI6MjA4OTM1OTU4M30.p4HF89z0fY-ku1kcjAyYOR9J5MTJS56PKE9LrdcoAX0';
 // URL relativa — backend roda no mesmo domínio Pages via _worker.js
 const WORKER_URL = '';
-const APP_VERSION = 'v1.0.2';
+const APP_VERSION = 'v1.1.0';
 const ANTHROPIC_PROXY = WORKER_URL;
 
 async function salvarComprovanteBanco(analise, valor, funcNome, hashImg){
@@ -5674,6 +5686,56 @@ function abrirDashboard(){
     const label = partes[0]+'/'+partes[1];
     return `<div style="flex:1;min-width:18px;text-align:center;font-size:.48rem;color:#64748b">${label}</div>`;
   }).join('');
+
+  // Coleta todas as entregas e todos os PIX de todos os clientes
+  const todasEntregas = [];
+  const todosPix = [];
+  clientes.forEach(c => {
+    (c.historico || []).forEach(h => {
+      const item = { ...h, _cliente: c.nome };
+      if(h.tipo === 'saida')   todasEntregas.push(item);
+      if(h.tipo === 'entrada') todosPix.push(item);
+    });
+  });
+
+  // Ordena do mais recente ao mais antigo
+  const _sortDesc = (a, b) => {
+    const ta = a.timestamp || (a.data ? a.data.split('/').reverse().join('-') : '');
+    const tb = b.timestamp || (b.data ? b.data.split('/').reverse().join('-') : '');
+    return tb.localeCompare(ta);
+  };
+  todasEntregas.sort(_sortDesc);
+  todosPix.sort(_sortDesc);
+
+  // Renderiza entregas
+  const elEntregas = document.getElementById('dashEntregas');
+  if(!todasEntregas.length){
+    elEntregas.innerHTML = '<div style="font-size:.75rem;color:#64748b;text-align:center;padding:10px">Nenhuma entrega registrada.</div>';
+  } else {
+    elEntregas.innerHTML = todasEntregas.map(h => `
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.06)">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:.75rem;font-weight:700;color:#f1f5f9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${h.desc||'Entrega'}</div>
+          <div style="font-size:.65rem;color:#94a3b8;margin-top:1px">👤 ${h._cliente} · 📅 ${h.data||'—'}</div>
+        </div>
+        <div style="font-size:.8rem;font-weight:800;color:#f97316;margin-left:10px;white-space:nowrap">− ${fmt(h.valor||0)}</div>
+      </div>`).join('');
+  }
+
+  // Renderiza PIX
+  const elPix = document.getElementById('dashPixRecebidos');
+  if(!todosPix.length){
+    elPix.innerHTML = '<div style="font-size:.75rem;color:#64748b;text-align:center;padding:10px">Nenhum PIX recebido ainda.</div>';
+  } else {
+    elPix.innerHTML = todosPix.map(h => `
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.06)">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:.75rem;font-weight:700;color:#f1f5f9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${h.nomeRemetente ? '🧑 '+h.nomeRemetente : (h.desc||'PIX recebido')}</div>
+          <div style="font-size:.65rem;color:#94a3b8;margin-top:1px">👤 ${h._cliente} · 📅 ${h.data||'—'}${h.urlFoto ? ' · <a href="'+h.urlFoto+'" target="_blank" style="color:#60a5fa;text-decoration:none">📎 ver</a>' : ''}</div>
+        </div>
+        <div style="font-size:.8rem;font-weight:800;color:#4ade80;margin-left:10px;white-space:nowrap">+ ${fmt(h.valor||0)}</div>
+      </div>`).join('');
+  }
 
   document.getElementById('modDashboard').classList.add('on');
 }

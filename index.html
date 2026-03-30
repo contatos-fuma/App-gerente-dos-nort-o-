@@ -4305,8 +4305,11 @@ function _reconstruirTelaFunc(){
       <button onclick="enviarWppDireto()" id="btnWppDireto" style="width:100%;padding:13px;background:rgba(37,211,102,.15);color:#25d366;border:2px solid #25d366;border-radius:14px;font-weight:800;font-size:.88rem;cursor:pointer;margin-bottom:10px;display:none">
         📲 ENVIAR MENSAGEM PELO MEU WHATSAPP
       </button>
-      <button onclick="abrirGaleriaFunc()" style="width:100%;padding:12px;background:rgba(255,255,255,.08);color:#94a3b8;border:1px solid rgba(255,255,255,.15);border-radius:14px;font-weight:700;font-size:.82rem;cursor:pointer;margin-bottom:12px">
+      <button onclick="abrirGaleriaFunc()" style="width:100%;padding:12px;background:rgba(255,255,255,.08);color:#94a3b8;border:1px solid rgba(255,255,255,.15);border-radius:14px;font-weight:700;font-size:.82rem;cursor:pointer;margin-bottom:10px">
         🖼️ VER MEUS COMPROVANTES
+      </button>
+      <button onclick="enviarSaldoParaGerente()" style="width:100%;padding:12px;background:rgba(59,130,246,.15);color:#60a5fa;border:1px solid rgba(59,130,246,.3);border-radius:14px;font-weight:700;font-size:.82rem;cursor:pointer;margin-bottom:12px">
+        📊 ENVIAR MEU SALDO AO GERENTE
       </button>
     </div>
     <div id="boxChavePixTela" style="display:none"></div>
@@ -5189,6 +5192,7 @@ async function confirmarPagamentoIA(){
 
   // Guarda para botão de envio direto
   const _urlFotoIA = _funcAtual._urlFotoAtual || null;
+  if(_urlFotoIA) msgWpp += '\n\n📎 *Comprovante:* ' + _urlFotoIA;
   _wppDiretoMsg    = msgWpp;
   _wppDiretoNum    = wppFinal;
   _wppDiretoFoto   = _urlFotoIA;
@@ -5288,7 +5292,8 @@ async function _finalizarDepoisDoPagamento(valor, obs, nome, now, wpp){
   const urlFotoPublica = _funcAtual._urlFotoAtual || null;
   _funcAtual._urlFotoAtual = null;
   const temFoto = !!_fotoBase64 && !_fotoBase64.startsWith('pdf:');
-  const msgWpp = '🚩 *PIX CONFIRMADO — Gestão Inteligente*\n\n👤 *'+nome+'*\n💰 Valor pago: *'+fmt(valor)+'*\n'+(obs?'📝 '+obs+'\n':'')+'🕐 '+now+'\n💳 Saldo devedor: *'+fmt(saldoFinal)+'*\n'+(saldoFinal>0?'⚠️ Ainda possui débito.':'✅ Conta quitada!');
+  let msgWpp = '🚩 *PIX CONFIRMADO — Gestão Inteligente*\n\n👤 *'+nome+'*\n💰 Valor pago: *'+fmt(valor)+'*\n'+(obs?'📝 '+obs+'\n':'')+'🕐 '+now+'\n💳 Saldo devedor: *'+fmt(saldoFinal)+'*\n'+(saldoFinal>0?'⚠️ Ainda possui débito.':'✅ Conta quitada!');
+  if(urlFotoPublica) msgWpp += '\n\n📎 *Comprovante:* ' + urlFotoPublica;
   _wppDiretoMsg    = msgWpp;
   _wppDiretoNum    = wppFinal;
   _wppDiretoFoto   = urlFotoPublica;

@@ -1111,7 +1111,7 @@ const SUPA_URL = 'https://hbtmyrmxfhctufiripwy.supabase.co';
 const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhidG15cm14ZmhjdHVmaXJpcHd5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM3ODM1ODMsImV4cCI6MjA4OTM1OTU4M30.p4HF89z0fY-ku1kcjAyYOR9J5MTJS56PKE9LrdcoAX0';
 // URL relativa — backend roda no mesmo domínio Pages via _worker.js
 const WORKER_URL = '';
-const APP_VERSION = 'v1.0.1';
+const APP_VERSION = 'v1.0.2';
 const ANTHROPIC_PROXY = WORKER_URL;
 
 async function salvarComprovanteBanco(analise, valor, funcNome, hashImg){
@@ -1238,60 +1238,9 @@ async function uploadImagemSupabase(base64){
       const m = base64.match(/^data:([^;]+);base64,(.+)$/);
       if(m){ mime = m[1]; dadosPuros = m[2]; }
     }
-    const byteChars = atob(dadosPuros);
-    const byteArr = new Uint8Array(byteChars.length);
-    for(let i = 0; i < byteChars.length; i++) byteArr[i] = byteChars.charCodeAt(i);
-    const blob = new Blob([byteArr], { type: mime });
-    return await _uploadBlobSupabase(blob, mime);
+    // Envia o original sem passar por canvas (canvas produz imagem preta em celular)
+    return await _uploadBase64ViaWorker(dadosPuros, mime);
   } catch(e){ console.error('[UPLOAD] exceção:', e); return null; }
-}
-
-// Upload via Worker — comprime antes para não ultrapassar limite de 1MB
-async function _uploadBlobSupabase(blob, mime){
-  try{
-    // Comprime via canvas para garantir < 800KB
-    const url = URL.createObjectURL(blob);
-    const base64Comprimido = await new Promise((resolve) => {
-      const img = new Image();
-      img.onload = () => {
-        try{
-          const MAX = 900;
-          let w = img.width, h = img.height;
-          if(w > MAX){ h = Math.round(h * MAX / w); w = MAX; }
-          const canvas = document.createElement('canvas');
-          canvas.width = w; canvas.height = h;
-          canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-          URL.revokeObjectURL(url);
-          // Reduz qualidade até ficar < 700KB em base64 (~525KB arquivo)
-          let q = 0.80;
-          let result = canvas.toDataURL('image/jpeg', q);
-          while(result.length > 950000 && q > 0.3){
-            q -= 0.1;
-            result = canvas.toDataURL('image/jpeg', q);
-          }
-          resolve(result.split(',')[1]);
-        }catch(e){ URL.revokeObjectURL(url); resolve(null); }
-      };
-      img.onerror = () => { URL.revokeObjectURL(url); resolve(null); };
-      img.src = url;
-    });
-
-    if(!base64Comprimido){
-      // Canvas falhou — tenta arrayBuffer direto
-      const buffer = await blob.arrayBuffer();
-      const bytes  = new Uint8Array(buffer);
-      let bin = '';
-      const chunk = 8192;
-      for(let i = 0; i < bytes.length; i += chunk)
-        bin += String.fromCharCode(...bytes.subarray(i, i + chunk));
-      return await _uploadBase64ViaWorker(btoa(bin), mime || 'image/jpeg');
-    }
-
-    return await _uploadBase64ViaWorker(base64Comprimido, 'image/jpeg');
-  }catch(e){
-    console.error('[UPLOAD] erro:', e);
-    return null;
-  }
 }
 
 async function _uploadBase64ViaWorker(base64, mime){

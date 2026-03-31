@@ -3938,17 +3938,34 @@ async function delPix(ci, pixId, valor){
   const h = c.historico[idx];
 
   _abrirModalOpcao({
-    icone: '💸',
-    titulo: 'Como apagar este PIX?',
-    desc: fmt(valor) + (h.data ? ' — ' + h.data : '') + (h.nomeRemetente ? ' · ' + h.nomeRemetente : ''),
+    icone: '🗑️',
+    titulo: 'Apagar recebimento de ' + fmt(valor) + '?',
+    desc: (h.data ? h.data + ' · ' : '') + (h.nomeRemetente ? h.nomeRemetente : 'PIX recebido'),
     info: fmt(D.recebido),
     infoLabel: 'Caixa atual',
     infoCor: '#16a34a',
     opcoes: [
       {
-        label: '💰 Manter no caixa',
-        desc: 'Remove da dívida do funcionário mas mantém ' + fmt(valor) + ' no caixa',
-        cor: '#16a34a', bg: '#f0fdf4', border: '#86efac',
+        label: '✅ Apagar e descontar do caixa',
+        desc: 'Remove o recebimento e desconta ' + fmt(valor) + ' do caixa (padrão)',
+        cor: '#dc2626', bg: '#fef2f2', border: '#fecaca',
+        acao: async () => {
+          c.historico.splice(idx, 1);
+          D.recebido = Math.max(0, D.recebido - valor);
+          // Se existe override e o PIX era anterior ao timestamp do override,
+          // atualiza a base também — senão o próximo save() desfaz a redução
+          if(D.caixaManualOverride !== null && D.caixaManualOverride !== undefined){
+            if((h.id||0) <= (D.caixaManualOverrideTs||0)){
+              D.caixaManualOverride = Math.max(0, D.caixaManualOverride - valor);
+            }
+          }
+          await _salvarDepoisDelPix(ci, h);
+        }
+      },
+      {
+        label: '💰 Apagar mas manter no caixa',
+        desc: 'Remove da dívida do funcionário mas o dinheiro continua no caixa',
+        cor: '#b45309', bg: '#fffbeb', border: '#fde68a',
         acao: async () => {
           c.historico.splice(idx, 1);
           // Congela o caixa no valor atual via override — sem isso o próximo save()
@@ -3957,23 +3974,6 @@ async function delPix(ci, pixId, valor){
           let maxId = 0;
           D.clientes.forEach(cl => { (cl.historico||[]).forEach(hh => { if((hh.id||0)>maxId) maxId=hh.id||0; }); });
           D.caixaManualOverrideTs = maxId;
-          await _salvarDepoisDelPix(ci, h);
-        }
-      },
-      {
-        label: '🗑️ Remover do caixa também',
-        desc: 'Remove do histórico e desconta ' + fmt(valor) + ' do caixa',
-        cor: '#dc2626', bg: '#fef2f2', border: '#fecaca',
-        acao: async () => {
-          c.historico.splice(idx, 1);
-          D.recebido = Math.max(0, D.recebido - valor);
-          // Se existe override e o PIX era anterior ao override (estava "absorvido" na base),
-          // atualiza a base também — senão o próximo save() desfaz a redução
-          if(D.caixaManualOverride !== null && D.caixaManualOverride !== undefined){
-            if((h.id||0) <= (D.caixaManualOverrideTs||0)){
-              D.caixaManualOverride = Math.max(0, D.caixaManualOverride - valor);
-            }
-          }
           await _salvarDepoisDelPix(ci, h);
         }
       }

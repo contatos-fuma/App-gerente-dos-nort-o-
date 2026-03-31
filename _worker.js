@@ -270,17 +270,17 @@ async function rotaStorageUpload({ base64, mime }, env, cors) {
 
   const headers = { 'Authorization': 'Bearer ' + supaKey, 'apikey': supaKey };
 
-  // Garante que o bucket existe e é PRIVADO
+  // Garante que o bucket existe e é público
   await fetch(`${supaUrl}/storage/v1/bucket`, {
     method: 'POST',
     headers: { ...headers, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ id: 'comprovantes', name: 'comprovantes', public: false })
+    body: JSON.stringify({ id: 'comprovantes', name: 'comprovantes', public: true })
   }).catch(() => {});
 
-  // Faz o upload (timeout 15s)
+  // Faz o upload
   const uploadResp = await fetch(
     `${supaUrl}/storage/v1/object/comprovantes/${fileName}`,
-    { method: 'POST', headers: { ...headers, 'Content-Type': mimeSeguro, 'x-upsert': 'true' }, body: bytes, signal: AbortSignal.timeout(15000) }
+    { method: 'POST', headers: { ...headers, 'Content-Type': mimeSeguro, 'x-upsert': 'true' }, body: bytes }
   );
 
   if (!uploadResp.ok) {
@@ -289,28 +289,8 @@ async function rotaStorageUpload({ base64, mime }, env, cors) {
     return json({ ok: false, error: 'Upload falhou (' + uploadResp.status + '): ' + errText.slice(0, 200) }, 502, cors);
   }
 
-  // Gera URL assinada com validade de 30 dias (só quem receber o link consegue ver)
-  const expiresIn = 60 * 60 * 24 * 30; // 30 dias em segundos
-  const signResp = await fetch(
-    `${supaUrl}/storage/v1/object/sign/comprovantes/${fileName}`,
-    { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify({ expiresIn }), signal: AbortSignal.timeout(5000) }
-  );
-  if (signResp.ok) {
-    const signData = await signResp.json();
-    const rawPath = signData.signedURL || signData.signedUrl || '';
-    let signedUrl;
-    if (rawPath.startsWith('http')) {
-      signedUrl = rawPath;
-    } else if (rawPath.startsWith('/storage/v1')) {
-      signedUrl = supaUrl + rawPath;
-    } else {
-      signedUrl = supaUrl + '/storage/v1' + rawPath;
-    }
-    return json({ ok: true, url: signedUrl }, 200, cors);
-  }
-
-  // Fallback: se não conseguir assinar, retorna sem URL (não expõe arquivo)
-  return json({ ok: true, url: null }, 200, cors);
+  const publicUrl = `${supaUrl}/storage/v1/object/public/comprovantes/${fileName}`;
+  return json({ ok: true, url: publicUrl }, 200, cors);
 }
 
 async function rotaPlanoVerificar({ usuario }, env, cors) {

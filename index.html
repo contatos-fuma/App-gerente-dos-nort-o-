@@ -3946,29 +3946,42 @@ async function delPix(ci, pixId, valor){
     infoCor: '#16a34a',
     opcoes: [
       {
-        label: '↩️ Devolver ao caixa',
-        desc: 'Remove o pagamento e devolve ' + fmt(valor) + ' ao caixa',
+        label: '💰 Manter no caixa',
+        desc: 'Remove da dívida do funcionário mas mantém ' + fmt(valor) + ' no caixa',
         cor: '#16a34a', bg: '#f0fdf4', border: '#86efac',
         acao: async () => {
           c.historico.splice(idx, 1);
-          D.recebido += valor;
-          await _salvarDepoisDelPix(ci, valor, h);
+          // Congela o caixa no valor atual via override — sem isso o próximo save()
+          // recalcularia do histórico e reduziria o caixa indevidamente
+          D.caixaManualOverride = D.recebido;
+          let maxId = 0;
+          D.clientes.forEach(cl => { (cl.historico||[]).forEach(hh => { if((hh.id||0)>maxId) maxId=hh.id||0; }); });
+          D.caixaManualOverrideTs = maxId;
+          await _salvarDepoisDelPix(ci, h);
         }
       },
       {
-        label: '🗑️ Limpar só do histórico',
-        desc: 'Remove o registro mas o caixa não é alterado',
+        label: '🗑️ Remover do caixa também',
+        desc: 'Remove do histórico e desconta ' + fmt(valor) + ' do caixa',
         cor: '#dc2626', bg: '#fef2f2', border: '#fecaca',
         acao: async () => {
           c.historico.splice(idx, 1);
-          await _salvarDepoisDelPix(ci, valor, h);
+          D.recebido = Math.max(0, D.recebido - valor);
+          // Se existe override e o PIX era anterior ao override (estava "absorvido" na base),
+          // atualiza a base também — senão o próximo save() desfaz a redução
+          if(D.caixaManualOverride !== null && D.caixaManualOverride !== undefined){
+            if((h.id||0) <= (D.caixaManualOverrideTs||0)){
+              D.caixaManualOverride = Math.max(0, D.caixaManualOverride - valor);
+            }
+          }
+          await _salvarDepoisDelPix(ci, h);
         }
       }
     ]
   });
 }
 
-async function _salvarDepoisDelPix(ci, valor, h){
+async function _salvarDepoisDelPix(ci, h){
   const c = D.clientes[ci];
   let saldo = 0;
   c.historico.forEach(item=>{

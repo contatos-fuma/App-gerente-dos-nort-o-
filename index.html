@@ -3924,7 +3924,6 @@ async function delSaida(ci, saidaId, valor){
 }
 
 async function delPix(ci, pixId, valor){
-  if(!confirm('Apagar pagamento de '+fmt(valor)+'?\n\nO valor voltará ao saldo devedor do funcionário. O caixa não será alterado.')) return;
   const c = D.clientes[ci]; if(!c) return;
 
   let idx = -1;
@@ -3937,16 +3936,46 @@ async function delPix(ci, pixId, valor){
     idx = candidatos[candidatos.length-1].i;
   }
   const h = c.historico[idx];
-  c.historico.splice(idx, 1);
 
-  // Só recalcula saldo do funcionário — caixa não é alterado
+  _abrirModalOpcao({
+    icone: '💸',
+    titulo: 'Como apagar este PIX?',
+    desc: fmt(valor) + (h.data ? ' — ' + h.data : '') + (h.nomeRemetente ? ' · ' + h.nomeRemetente : ''),
+    info: fmt(D.recebido),
+    infoLabel: 'Caixa atual',
+    infoCor: '#16a34a',
+    opcoes: [
+      {
+        label: '↩️ Devolver ao caixa',
+        desc: 'Remove o pagamento e devolve ' + fmt(valor) + ' ao caixa',
+        cor: '#16a34a', bg: '#f0fdf4', border: '#86efac',
+        acao: async () => {
+          c.historico.splice(idx, 1);
+          D.recebido += valor;
+          await _salvarDepoisDelPix(ci, valor, h);
+        }
+      },
+      {
+        label: '🗑️ Limpar só do histórico',
+        desc: 'Remove o registro mas o caixa não é alterado',
+        cor: '#dc2626', bg: '#fef2f2', border: '#fecaca',
+        acao: async () => {
+          c.historico.splice(idx, 1);
+          await _salvarDepoisDelPix(ci, valor, h);
+        }
+      }
+    ]
+  });
+}
+
+async function _salvarDepoisDelPix(ci, valor, h){
+  const c = D.clientes[ci];
   let saldo = 0;
   c.historico.forEach(item=>{
     if(item.tipo==='saida')        saldo += item.valor||0;
     else if(item.tipo==='entrada') saldo -= item.valor||0;
   });
   c.saldo = Math.max(0, saldo);
-
   localStorage.setItem(keyDoUsuario(_usuario), JSON.stringify(D));
   render();
   const elSaldo = document.getElementById('modFuncSaldo');

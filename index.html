@@ -421,7 +421,7 @@ tr:last-child td{border-bottom:none}
     </select>
 
     <label>Valor (R$)</label>
-    <input id="ajusteCardValor" type="number" placeholder="0,00" style="margin-bottom:8px">
+    <input id="ajusteCardValor" type="text" inputmode="decimal" placeholder="0,00" style="margin-bottom:8px">
 
     <label>Motivo (opcional)</label>
     <input id="ajusteCardMotivo" type="text" placeholder="Ex: Correção, acerto..." style="margin-bottom:16px">
@@ -759,7 +759,7 @@ tr:last-child td{border-bottom:none}
     </div>
     <div class="card" style="border-left:4px solid #10b981;margin-bottom:0">
       <h4 style="margin:0 0 10px">💰 Receber Acerto</h4>
-      <input id="vPix" type="number" placeholder="R$ Valor">
+      <input id="vPix" type="text" inputmode="decimal" placeholder="R$ Valor">
       <button class="ba" style="background:var(--s)" onclick="receberPix()">GRAVAR ACERTO</button>
     </div>
   </div>
@@ -1394,8 +1394,17 @@ function sanitize(str){
 }
 
 // ✅ Valida valor monetário/quantidade — rejeita Infinity, NaN, negativos e valores absurdos
+// Suporta formato brasileiro (vírgula como decimal, ponto como milhar): "1.500,50" → 1500.50
 function _parseValor(v, max=999999){
-  const n = parseFloat(v);
+  let s = String(v||'').trim().replace(/[R$\s]/g,'');
+  if(s.includes(',')){
+    // Formato BR: 1.500,50 ou 1500,50 → remover pontos de milhar, trocar vírgula por ponto
+    s = s.replace(/\./g,'').replace(',','.');
+  } else if(/^\d+\.\d{3}$/.test(s)){
+    // Ponto com exatamente 3 dígitos depois → separador de milhar (1.500 → 1500)
+    s = s.replace('.','');
+  }
+  const n = parseFloat(s);
   if(!isFinite(n) || n < 0 || n > max) return NaN;
   return n;
 }

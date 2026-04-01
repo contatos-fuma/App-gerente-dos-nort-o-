@@ -39,7 +39,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;margin:0;padding:0;background:#
 
 /* ── NAV TABS ── */
 .nav-wrap{background:#0f172a;padding:0 16px 16px}
-.nav{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.nav{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
 .nav button{padding:10px 4px;border:none;border-radius:12px;background:#1e293b;color:#64748b;font-weight:700;font-size:.62rem;cursor:pointer;transition:all .2s;border:1px solid #334155}
 .nav button.on{background:#2563eb;color:#fff;border-color:#2563eb;box-shadow:0 4px 12px rgba(37,99,235,.4)}
 
@@ -102,7 +102,7 @@ tr:last-child td{border-bottom:none}
   background:linear-gradient(135deg,#0f172a 0%,#1a2744 100%);
   border-bottom:1px solid #334155;
   display:none; /* mostrado só quando appBox está visível */
-  grid-template-columns:repeat(4,1fr);
+  grid-template-columns:repeat(5,1fr);
   gap:0;
   z-index:999;
   box-shadow:0 4px 20px rgba(0,0,0,.4);
@@ -131,6 +131,7 @@ tr:last-child td{border-bottom:none}
 .nav-fixed button.on.tab-equipe::after{background:#25d366}
 .nav-fixed button.on.tab-entrega::after{background:#f59e0b}
 .nav-fixed button.on.tab-fornec::after{background:#f87171}
+.nav-fixed button.on.tab-mensal::after{background:#a78bfa}
 
 /* ── LOGIN ── */
 #telaLogin{display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px;background:linear-gradient(160deg,#0f172a 0%,#1e3a5f 100%)}
@@ -702,10 +703,11 @@ tr:last-child td{border-bottom:none}
   <!-- NAV -->
   <div class="nav-wrap" style="display:none">
     <div class="nav">
-      <button class="on" onclick="aba(1)">👥 Funcionário</button>
+      <button class="on" onclick="aba(1)">👥 Equipe</button>
       <button onclick="aba(2)">📦 Entrega</button>
       <button onclick="aba(0)">📦 Estoque</button>
-      <button onclick="aba(3)">🚚 Fornecedor</button>
+      <button onclick="aba(3)">🚚 Fornec.</button>
+      <button onclick="aba(4)">💳 Mensal</button>
     </div>
   </div>
 
@@ -788,6 +790,38 @@ tr:last-child td{border-bottom:none}
     <div class="section-title">🚚 Lista de Fornecedores</div>
     <div id="listaForn"></div>
   </div>
+
+  <!-- ── ABA 4: MENSALISTAS ── -->
+  <div id="t4" class="tab">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+      <div style="font-size:.7rem;font-weight:800;color:#475569;text-transform:uppercase;letter-spacing:.06em">💳 Mensalistas</div>
+      <button onclick="abrirModalAddMensalista()"
+        style="background:#7c3aed;color:#fff;border:none;width:36px;height:36px;border-radius:50%;font-size:1.4rem;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 12px rgba(124,58,237,.4);line-height:1">
+        +
+      </button>
+    </div>
+
+    <!-- Cards de resumo -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px">
+      <div style="background:#1e293b;border-radius:12px;padding:12px;text-align:center;border:1px solid #334155">
+        <div style="font-size:.6rem;color:#94a3b8;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">Total Cadastrados</div>
+        <div id="mensTotalCad" style="font-size:1.2rem;font-weight:800;color:#a78bfa">0</div>
+      </div>
+      <div style="background:#1e293b;border-radius:12px;padding:12px;text-align:center;border:1px solid #334155">
+        <div style="font-size:.6rem;color:#94a3b8;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">Vencimento</div>
+        <div style="font-size:1.2rem;font-weight:800;color:#fbbf24">Dia 27</div>
+      </div>
+    </div>
+
+    <!-- Botão enviar cobrança para todos -->
+    <button onclick="enviarCobrancaTodos()" style="width:100%;padding:13px;background:#25d366;color:#fff;border:none;border-radius:12px;font-weight:700;font-size:.85rem;cursor:pointer;margin-bottom:14px;display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 4px 12px rgba(37,211,102,.3)">
+      <span style="font-size:1.1rem">📲</span> COBRAR TODOS NO WHATSAPP
+    </button>
+
+    <!-- Lista de mensalistas -->
+    <div id="listaMensalistas" style="display:flex;flex-direction:column;gap:10px"></div>
+  </div>
+
 </div>
 
 <!-- MODAL RESET SELETIVO -->
@@ -822,6 +856,11 @@ tr:last-child td{border-bottom:none}
         <p style="font-size:.72rem;color:#64748b;margin:4px 0 10px">Remove todos os fornecedores e notas.</p>
         <button onclick="resetSeletivo('fornecedores')" style="width:100%;padding:11px;background:#dc2626;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:.8rem">🗑️ APAGAR FORNECEDORES</button>
       </div>
+      <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:12px">
+        <b style="font-size:.85rem">💳 Mensalistas</b>
+        <p style="font-size:.72rem;color:#64748b;margin:4px 0 10px">Remove todos os mensalistas e históricos de pagamento.</p>
+        <button onclick="resetSeletivo('mensalistas')" style="width:100%;padding:11px;background:#dc2626;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:.8rem">🗑️ APAGAR MENSALISTAS</button>
+      </div>
       <div style="background:#fef2f2;border:2px solid #dc2626;border-radius:10px;padding:12px">
         <b style="font-size:.85rem;color:#dc2626">⚠️ APAGAR TUDO</b>
         <p style="font-size:.72rem;color:#64748b;margin:4px 0 10px">Apaga estoque, funcionários, fornecedores e caixa. Irreversível.</p>
@@ -836,7 +875,7 @@ tr:last-child td{border-bottom:none}
 <nav class="nav-fixed" id="navFixed">
   <button class="on tab-equipe" onclick="aba(1)">
     <span class="nav-icon">👥</span>
-    <span>Funcionário</span>
+    <span>Equipe</span>
   </button>
   <button class="tab-entrega" onclick="aba(2)">
     <span class="nav-icon">📊</span>
@@ -848,9 +887,31 @@ tr:last-child td{border-bottom:none}
   </button>
   <button class="tab-fornec" onclick="aba(3)">
     <span class="nav-icon">🚚</span>
-    <span>Fornecedor</span>
+    <span>Fornec.</span>
+  </button>
+  <button class="tab-mensal" onclick="aba(4)">
+    <span class="nav-icon">💳</span>
+    <span>Mensal</span>
   </button>
 </nav>
+
+<!-- MODAL ADICIONAR MENSALISTA -->
+<div id="modAddMensalista" class="overlay">
+  <div class="mbox"><div class="modal-handle"></div>
+    <button onclick="fecharMod('modAddMensalista')" style="width:100%;padding:11px;background:#f1f5f9;border:none;border-radius:12px;font-weight:700;cursor:pointer;margin-bottom:14px;color:#475569;font-size:.85rem">✕ Fechar</button>
+    <h3 id="modMensalistaTitulo" style="text-align:center;margin:0 0 14px;font-size:1rem;font-weight:800">➕ Cadastrar Mensalista</h3>
+    <label>Nome Completo</label>
+    <input id="mNome" placeholder="Ex: João da Silva">
+    <label>Apelido</label>
+    <input id="mApelido" placeholder="Ex: Joãozinho">
+    <label>Matrícula</label>
+    <input id="mMatricula" placeholder="Ex: 001, MAT-2024...">
+    <label>WhatsApp (com DDD)</label>
+    <input id="mWpp" type="tel" placeholder="Ex: 65999999999" inputmode="numeric">
+    <input type="hidden" id="mEditIdx" value="-1">
+    <button class="ba" style="background:#7c3aed" onclick="salvarMensalista()">✅ SALVAR MENSALISTA</button>
+  </div>
+</div>
 </div><!-- fim appBox -->
 
 <!-- MODAL FUNCIONÁRIO -->
@@ -2320,7 +2381,7 @@ function sair(){
   mudarAbaLogin('entrar');
 }
 
-let D={estoque:[],clientes:[],fornecedores:[],recebido:0,wppGerente:''};
+let D={estoque:[],clientes:[],fornecedores:[],recebido:0,wppGerente:'',mensalistas:[]};
 let fornAberto={};
 let _pagFi=null,_pagCi=null;
 
@@ -2454,12 +2515,12 @@ async function load(){
   try{
     const s=localStorage.getItem(keyDoUsuario(_usuario));
     if(s){
-      D=Object.assign({estoque:[],clientes:[],fornecedores:[],recebido:0},JSON.parse(s));
+      D=Object.assign({estoque:[],clientes:[],fornecedores:[],recebido:0,mensalistas:[]},JSON.parse(s));
       temLocal = true;
     } else {
-      D={estoque:[],clientes:[],fornecedores:[],recebido:0};
+      D={estoque:[],clientes:[],fornecedores:[],recebido:0,mensalistas:[]};
     }
-  }catch(e){ D={estoque:[],clientes:[],fornecedores:[],recebido:0}; }
+  }catch(e){ D={estoque:[],clientes:[],fornecedores:[],recebido:0,mensalistas:[]}; }
   render();
 
   
@@ -2474,7 +2535,7 @@ async function load(){
     if(data && data.dados){
       const nuvem=JSON.parse(data.dados);
       
-      D=Object.assign({estoque:[],clientes:[],fornecedores:[],recebido:0,wppGerente:''},nuvem);
+      D=Object.assign({estoque:[],clientes:[],fornecedores:[],recebido:0,wppGerente:'',mensalistas:[]},nuvem);
       localStorage.setItem(keyDoUsuario(_usuario),JSON.stringify(D));
       render();
       setSyncStatus('☁️ Sincronizado','#4ade80');
@@ -2596,6 +2657,7 @@ function render(){
   }).join('');
 
   if(_abaAtual===1) _renderFuncionarios();
+  if(_abaAtual===4) _renderMensalistas();
   D.clientes.forEach(c=>{ tR+=c.saldo; });
 
   let htmlF='';
@@ -2724,6 +2786,153 @@ function render(){
 
 function abrirTutorial(){ document.getElementById('modTutorial').classList.add('on'); }
 
+// ── MENSALISTAS ─────────────────────────────────────────────
+
+function abrirModalAddMensalista(idx){
+  document.getElementById('mNome').value='';
+  document.getElementById('mApelido').value='';
+  document.getElementById('mMatricula').value='';
+  document.getElementById('mWpp').value='';
+  document.getElementById('mEditIdx').value='-1';
+  const titulo=document.getElementById('modMensalistaTitulo');
+  if(idx!==undefined && idx>=0){
+    const m=D.mensalistas[idx];
+    if(m){
+      document.getElementById('mNome').value=m.nome||'';
+      document.getElementById('mApelido').value=m.apelido||'';
+      document.getElementById('mMatricula').value=m.matricula||'';
+      document.getElementById('mWpp').value=m.wpp||'';
+      document.getElementById('mEditIdx').value=idx;
+      titulo.innerText='✏️ Editar Mensalista';
+    }
+  } else {
+    titulo.innerText='➕ Cadastrar Mensalista';
+  }
+  document.getElementById('modAddMensalista').classList.add('on');
+}
+
+function salvarMensalista(){
+  const nome=(document.getElementById('mNome').value||'').trim();
+  const apelido=(document.getElementById('mApelido').value||'').trim();
+  const matricula=(document.getElementById('mMatricula').value||'').trim();
+  const wpp=(document.getElementById('mWpp').value||'').trim().replace(/\D/g,'');
+  if(!nome) return alert('⚠️ Digite o nome do mensalista.');
+  if(!matricula) return alert('⚠️ Digite a matrícula.');
+  const idx=parseInt(document.getElementById('mEditIdx').value);
+  if(!D.mensalistas) D.mensalistas=[];
+  if(idx>=0){
+    D.mensalistas[idx]=Object.assign(D.mensalistas[idx],{nome,apelido,matricula,wpp});
+  } else {
+    D.mensalistas.push({id:Date.now(),nome,apelido,matricula,wpp,pagamentos:[]});
+  }
+  fecharMod('modAddMensalista');
+  save();
+  _renderMensalistas();
+}
+
+function delMensalista(idx){
+  if(!confirm('Remover este mensalista?')) return;
+  D.mensalistas.splice(idx,1);
+  save();
+  _renderMensalistas();
+}
+
+function _renderMensalistas(){
+  if(!D.mensalistas) D.mensalistas=[];
+  const lista=document.getElementById('listaMensalistas');
+  const contEl=document.getElementById('mensTotalCad');
+  if(!lista) return;
+  if(contEl) contEl.innerText=D.mensalistas.length;
+  if(!D.mensalistas.length){
+    lista.innerHTML='<div style="text-align:center;padding:24px;color:#94a3b8;font-size:.8rem">Nenhum mensalista cadastrado.<br>Toque em <b>+</b> para adicionar.</div>';
+    return;
+  }
+  const agora=new Date();
+  const mesAtual=agora.getMonth();
+  const anoAtual=agora.getFullYear();
+  const chave=`${mesAtual+1}/${anoAtual}`;
+  lista.innerHTML=D.mensalistas.map((m,i)=>{
+    const pago=(m.pagamentos||[]).includes(chave);
+    const wppFmt=m.wpp?'55'+m.wpp:'';
+    const nomeExib=sanitize(m.apelido||m.nome);
+    const msg=_montarMsgCobranca(m);
+    const waLink=m.wpp?`https://wa.me/${wppFmt}?text=${encodeURIComponent(msg)}`:'';
+    return `<div style="background:#fff;border-radius:14px;padding:14px;box-shadow:0 1px 4px rgba(0,0,0,.07);border:1px solid ${pago?'#10b981':'#e2e8f0'}">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
+        <div>
+          <div style="font-weight:800;font-size:.95rem;color:#1e293b">${nomeExib}</div>
+          <div style="font-size:.7rem;color:#64748b;margin-top:2px">Mat: <b>${sanitize(m.matricula)}</b> · ${sanitize(m.nome)}</div>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center">
+          <span style="background:${pago?'#dcfce7':'#fef2f2'};color:${pago?'#16a34a':'#dc2626'};padding:3px 10px;border-radius:20px;font-size:.62rem;font-weight:700">${pago?'✅ PAGO':'⏳ PEND.'}</span>
+        </div>
+      </div>
+      <div style="background:#f8fafc;border-radius:8px;padding:8px 10px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center">
+        <span style="font-size:.75rem;color:#475569">Mensalidade</span>
+        <span style="font-weight:800;color:#1e293b">R$ 100,00</span>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        ${m.wpp?`<a href="${waLink}" target="_blank" style="flex:1;text-align:center;padding:10px 8px;background:#25d366;color:#fff;border-radius:10px;text-decoration:none;font-weight:700;font-size:.78rem;display:flex;align-items:center;justify-content:center;gap:4px">📲 COBRAR</a>`:'<div style="flex:1;padding:10px 8px;background:#f1f5f9;color:#94a3b8;border-radius:10px;font-size:.72rem;text-align:center">Sem WhatsApp</div>'}
+        <button onclick="togglePagamentoMensalista(${i})" style="flex:1;padding:10px 8px;background:${pago?'#fef2f2':'#f0fdf4'};color:${pago?'#dc2626':'#16a34a'};border:none;border-radius:10px;font-weight:700;font-size:.78rem;cursor:pointer">${pago?'↩️ DESFAZER':'✅ PAGO'}</button>
+        <button onclick="abrirModalAddMensalista(${i})" style="padding:10px 10px;background:#ede9fe;color:#6366f1;border:none;border-radius:10px;font-weight:700;font-size:.78rem;cursor:pointer">✏️</button>
+        <button onclick="delMensalista(${i})" style="padding:10px 10px;background:#fee2e2;color:#dc2626;border:none;border-radius:10px;font-weight:700;font-size:.78rem;cursor:pointer">🗑️</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function togglePagamentoMensalista(idx){
+  if(!D.mensalistas[idx]) return;
+  const agora=new Date();
+  const chave=`${agora.getMonth()+1}/${agora.getFullYear()}`;
+  if(!D.mensalistas[idx].pagamentos) D.mensalistas[idx].pagamentos=[];
+  const pos=D.mensalistas[idx].pagamentos.indexOf(chave);
+  if(pos>=0) D.mensalistas[idx].pagamentos.splice(pos,1);
+  else D.mensalistas[idx].pagamentos.push(chave);
+  save();
+  _renderMensalistas();
+}
+
+function _montarMsgCobranca(m){
+  const agora=new Date();
+  const meses=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+  const mesNome=meses[agora.getMonth()];
+  const ano=agora.getFullYear();
+  const nome=m.apelido||m.nome;
+  let msg=`Olá *${nome}*! 👋\n\n`;
+  msg+=`Segue sua cobrança de mensalidade:\n\n`;
+  msg+=`📋 *MATRÍCULA:* ${m.matricula}\n`;
+  msg+=`📅 *Mês de referência:* ${mesNome}/${ano}\n`;
+  msg+=`💰 *Valor:* R$ 100,00\n`;
+  msg+=`⏰ *Vencimento:* dia *27/${agora.getMonth()+1}/${ano}*\n`;
+  if(D.chavePix){
+    msg+=`\n💳 *Chave PIX para pagamento:*\n${D.chavePix}\n`;
+  }
+  msg+=`\nQualquer dúvida, entre em contato. Obrigado! 🙏`;
+  return msg;
+}
+
+function enviarCobrancaTodos(){
+  if(!D.mensalistas||!D.mensalistas.length) return alert('Nenhum mensalista cadastrado.');
+  const comWpp=D.mensalistas.filter(m=>m.wpp);
+  if(!comWpp.length) return alert('Nenhum mensalista tem WhatsApp cadastrado.');
+  const agora=new Date();
+  const chave=`${agora.getMonth()+1}/${agora.getFullYear()}`;
+  const pendentes=comWpp.filter(m=>!(m.pagamentos||[]).includes(chave));
+  const alvo=pendentes.length?pendentes:comWpp;
+  let i=0;
+  function proximo(){
+    if(i>=alvo.length){ alert(`✅ Cobranças abertas para ${alvo.length} mensalista(s)!`); return; }
+    const m=alvo[i++];
+    const msg=_montarMsgCobranca(m);
+    const wppFmt='55'+m.wpp;
+    const url=`https://wa.me/${wppFmt}?text=${encodeURIComponent(msg)}`;
+    window.open(url,'_blank');
+    setTimeout(proximo,800);
+  }
+  proximo();
+}
+
 function toggleFab(){
   const menu = document.getElementById('fabMenu');
   const btn  = document.getElementById('fabBtn');
@@ -2771,7 +2980,7 @@ function confirmarAdiantAba(origem){
 
 function toggleForn(fi){ fornAberto[fi]=!fornAberto[fi]; render(); }
 
-var _ordemVisual = [1, 2, 0, 3];
+var _ordemVisual = [1, 2, 0, 3, 4];
 var _posVisual   = 0; 
 var _abaAtual    = 1; 
 
@@ -2845,6 +3054,7 @@ function aba(n){
   _posVisual = pos;
   _abaAtual  = n;
   if(n===1) _renderFuncionarios();
+  if(n===4) _renderMensalistas();
   document.querySelectorAll('#navFixed button').forEach(function(b){ b.classList.remove('on'); });
   document.querySelectorAll('#navFixed button')[_posVisual].classList.add('on');
   window.scrollTo({top:0, behavior:'smooth'});
@@ -2863,7 +3073,7 @@ document.addEventListener('touchend', function(e){
   if(Math.abs(dx) < 50) return;
   if(Math.abs(dy) > Math.abs(dx)) return;
   var novaPos = _posVisual + (dx < 0 ? 1 : -1);
-  if(novaPos >= 0 && novaPos <= 3){
+  if(novaPos >= 0 && novaPos <= 4){
     _posVisual = novaPos;
     aba(_ordemVisual[novaPos]);
   }
@@ -4023,7 +4233,7 @@ function delForn(i){
 }
 function abrirReset(){ document.getElementById('modReset').classList.add('on'); }
 function resetSeletivo(tipo){
-  const msgs={historico:'Limpar todo o histórico de entregas?\n\nFuncionários serão mantidos mas saldos zerados.',caixa:'Zerar o caixa?',estoque:'Limpar todo o estoque?',clientes:'Apagar TODOS os funcionários?\n\nIrreversível!',fornecedores:'Apagar TODOS os fornecedores e notas?\n\nIrreversível!',tudo:'⚠️ APAGAR TUDO?\n\nEstoque, funcionários, fornecedores e caixa.\n\nIrreversível!'};
+  const msgs={historico:'Limpar todo o histórico de entregas?\n\nFuncionários serão mantidos mas saldos zerados.',caixa:'Zerar o caixa?',estoque:'Limpar todo o estoque?',clientes:'Apagar TODOS os funcionários?\n\nIrreversível!',fornecedores:'Apagar TODOS os fornecedores e notas?\n\nIrreversível!',mensalistas:'Apagar TODOS os mensalistas?\n\nIrreversível!',tudo:'⚠️ APAGAR TUDO?\n\nEstoque, funcionários, fornecedores, mensalistas e caixa.\n\nIrreversível!'};
   if(!confirm(msgs[tipo])) return;
   if(prompt('Digite  CONFIRMAR  para prosseguir:')!=='CONFIRMAR') return alert('❌ Cancelado.');
   if(tipo==='historico'){ D.clientes.forEach(c=>{c.historico=[];c.saldo=0;}); D.recebido=0; D.caixaManualOverride=null; D.caixaManualOverrideTs=null; }
@@ -4031,7 +4241,8 @@ function resetSeletivo(tipo){
   else if(tipo==='estoque'){ D.estoque=[]; D.custoOverride=null; }
   else if(tipo==='clientes'){ D.clientes=[]; D.recebido=0; D.receberOverride=null; D.caixaManualOverride=null; D.caixaManualOverrideTs=null; _relIdx=null; }
   else if(tipo==='fornecedores'){ D.fornecedores=[]; D.fornecOverride=null; fornAberto={}; _pagFi=null;_pagCi=null;_fornRapidoIdx=null; }
-  else if(tipo==='tudo'){ D={estoque:[],clientes:[],fornecedores:[],recebido:0}; fornAberto={}; _relIdx=null; _pagFi=null;_pagCi=null;_fornRapidoIdx=null; }
+  else if(tipo==='mensalistas'){ D.mensalistas=[]; }
+  else if(tipo==='tudo'){ D={estoque:[],clientes:[],fornecedores:[],recebido:0,mensalistas:[]}; fornAberto={}; _relIdx=null; _pagFi=null;_pagCi=null;_fornRapidoIdx=null; }
   fecharMod('modReset'); save(); alert('✅ Concluído!');
 }
 

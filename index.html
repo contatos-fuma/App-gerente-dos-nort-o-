@@ -5335,6 +5335,13 @@ async function _enviarWppComFoto(){
     return;
   }
 
+  const phone = '55' + String(num).replace(/\D/g,'');
+  const wameUrl = 'https://wa.me/' + phone + '?text=' + encodeURIComponent(_wppDiretoMsg);
+
+  // Abre janela antecipadamente (dentro do gesto do usuário) — necessário para iOS Safari,
+  // que bloqueia window.open() chamado após operações assíncronas (await).
+  const winRef = window.open('', '_blank');
+
   // Tenta compartilhar a foto como imagem real (Web Share API)
   if(_wppDiretoBase64 && navigator.canShare){
     try{
@@ -5343,19 +5350,20 @@ async function _enviarWppComFoto(){
       const blob = await fetch('data:' + mime + ';base64,' + _wppDiretoBase64).then(r => r.blob());
       const file = new File([blob], 'comprovante.' + ext, { type: mime });
       if(navigator.canShare({ files: [file] })){
+        if(winRef) winRef.close();
         await navigator.share({ files: [file], text: _wppDiretoMsg });
         _wppDiretoBase64 = null; // limpa após envio único
         return;
       }
     }catch(e){
-      if(e.name === 'AbortError') return; // usuário cancelou
+      if(e.name === 'AbortError'){ if(winRef) winRef.close(); return; } // usuário cancelou
       // falha → segue para fallback
     }
   }
 
-  // Fallback: abre WhatsApp com texto (sem foto)
-  const phone = '55' + String(num).replace(/\D/g,'');
-  window.open('https://wa.me/' + phone + '?text=' + encodeURIComponent(_wppDiretoMsg), '_blank');
+  // Fallback: redireciona para WhatsApp com texto (sem foto)
+  if(winRef){ winRef.location.href = wameUrl; }
+  else { window.open(wameUrl, '_blank'); }
 }
 
 function _mostrarBtnWppDireto(msg, num){

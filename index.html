@@ -5253,6 +5253,20 @@ async function confirmarPagamentoIA(){
   }
 }
 
+// Abre o WhatsApp diretamente no app, sem passar por página web.
+// Android usa intent:// (bypassa Chrome completamente).
+// iOS usa whatsapp:// (funciona sem bloqueio de popup).
+function _abrirWhatsApp(phone, msg){
+  const txt = encodeURIComponent(msg);
+  if(/Android/i.test(navigator.userAgent)){
+    location.href = 'intent://send?phone=' + phone + '&text=' + txt +
+      '#Intent;scheme=whatsapp;package=com.whatsapp;S.browser_fallback_url=' +
+      encodeURIComponent('https://wa.me/' + phone + '?text=' + txt) + ';end';
+  } else {
+    location.href = 'whatsapp://send?phone=' + phone + '&text=' + txt;
+  }
+}
+
 // Guarda a mensagem, número e foto para o botão de envio direto
 let _wppDiretoMsg    = '';
 let _wppDiretoNum    = '';
@@ -5357,10 +5371,8 @@ async function _enviarWppComFoto(){
     }
   }
 
-  // Fallback: abre o app do WhatsApp diretamente via URI scheme.
-  // location.href não abre nova aba (sem página de download) e não
-  // precisa de gesto síncrono — funciona no Chrome Android e iOS.
-  location.href = 'whatsapp://send?phone=' + phone + '&text=' + encodeURIComponent(_wppDiretoMsg);
+  // Fallback: abre o app do WhatsApp diretamente (sem página intermediária).
+  _abrirWhatsApp(phone, _wppDiretoMsg);
 }
 
 function _mostrarBtnWppDireto(msg, num){
@@ -5378,7 +5390,7 @@ function enviarWppDireto(){
     return;
   }
   const phone = '55' + String(num).replace(/\D/g,'');
-  location.href = 'whatsapp://send?phone=' + phone + '&text=' + encodeURIComponent(msg);
+  _abrirWhatsApp(phone, msg);
 }
 
 function enviarSaldoParaGerente(){
@@ -5416,7 +5428,7 @@ function enviarSaldoParaGerente(){
   msg += (saldo > 0 ? '⚠️ Ainda possui débito.' : '✅ Conta quitada!');
 
   const phone = '55' + String(num).replace(/\D/g, '');
-  location.href = 'whatsapp://send?phone=' + phone + '&text=' + encodeURIComponent(msg);
+  _abrirWhatsApp(phone, msg);
 }
 
 async function registrarPagamentoFunc(valor, obs, itensPix){

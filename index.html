@@ -5338,12 +5338,6 @@ async function _enviarWppComFoto(){
   }
 
   const phone = '55' + String(num).replace(/\D/g,'');
-  const wameUrl = 'https://wa.me/' + phone + '?text=' + encodeURIComponent(_wppDiretoMsg);
-
-  // iOS Safari bloqueia window.open() após await — abre janela em branco antes das operações async.
-  // Em outros navegadores (Chrome/Android) o window.open direto funciona e preserva o deep link.
-  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-  const winRef = isIOS ? window.open('', '_blank') : null;
 
   // Tenta compartilhar a foto como imagem real (Web Share API)
   if(_wppDiretoBase64 && navigator.canShare){
@@ -5353,20 +5347,20 @@ async function _enviarWppComFoto(){
       const blob = await fetch('data:' + mime + ';base64,' + _wppDiretoBase64).then(r => r.blob());
       const file = new File([blob], 'comprovante.' + ext, { type: mime });
       if(navigator.canShare({ files: [file] })){
-        if(winRef) winRef.close();
         await navigator.share({ files: [file], text: _wppDiretoMsg });
-        _wppDiretoBase64 = null; // limpa após envio único
+        _wppDiretoBase64 = null;
         return;
       }
     }catch(e){
-      if(e.name === 'AbortError'){ if(winRef) winRef.close(); return; } // usuário cancelou
+      if(e.name === 'AbortError') return; // usuário cancelou
       // falha → segue para fallback
     }
   }
 
-  // Fallback: abre WhatsApp com texto (sem foto)
-  if(winRef){ winRef.location.href = wameUrl; }
-  else { window.open(wameUrl, '_blank'); }
+  // Fallback: abre o app do WhatsApp diretamente via URI scheme.
+  // location.href não abre nova aba (sem página de download) e não
+  // precisa de gesto síncrono — funciona no Chrome Android e iOS.
+  location.href = 'whatsapp://send?phone=' + phone + '&text=' + encodeURIComponent(_wppDiretoMsg);
 }
 
 function _mostrarBtnWppDireto(msg, num){
@@ -5384,7 +5378,7 @@ function enviarWppDireto(){
     return;
   }
   const phone = '55' + String(num).replace(/\D/g,'');
-  window.open('https://wa.me/'+phone+'?text='+encodeURIComponent(msg), '_blank');
+  location.href = 'whatsapp://send?phone=' + phone + '&text=' + encodeURIComponent(msg);
 }
 
 function enviarSaldoParaGerente(){
@@ -5422,7 +5416,7 @@ function enviarSaldoParaGerente(){
   msg += (saldo > 0 ? '⚠️ Ainda possui débito.' : '✅ Conta quitada!');
 
   const phone = '55' + String(num).replace(/\D/g, '');
-  window.open('https://wa.me/' + phone + '?text=' + encodeURIComponent(msg), '_blank');
+  location.href = 'whatsapp://send?phone=' + phone + '&text=' + encodeURIComponent(msg);
 }
 
 async function registrarPagamentoFunc(valor, obs, itensPix){

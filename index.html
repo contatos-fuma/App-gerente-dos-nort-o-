@@ -3504,8 +3504,8 @@ function filtrarRelatorio(){
 
   
   const filtro = h => mesSel==='todos' ? true : getMesAno(h.data)===mesSel;
-  const saidas   = hist.filter(h=>h.tipo==='saida'   && filtro(h)).sort((a,b)=>parseDt(a.data)-parseDt(b.data));
-  const entradas = hist.filter(h=>h.tipo==='entrada' && filtro(h)).sort((a,b)=>parseDt(a.data)-parseDt(b.data));
+  const saidas   = hist.filter(h=>h.tipo==='saida'   && filtro(h)).sort((a,b)=>{ const d=parseDt(a.data)-parseDt(b.data); return d!==0?d:(a.id||0)-(b.id||0); });
+  const entradas = hist.filter(h=>h.tipo==='entrada' && filtro(h)).sort((a,b)=>{ const d=parseDt(a.data)-parseDt(b.data); return d!==0?d:(a.id||0)-(b.id||0); });
   const totalSaidas   = saidas.reduce((s,h)=>s+h.valor,0);
   const totalEntradas = entradas.reduce((s,h)=>s+h.valor,0);
   const saldoMes = totalSaidas - totalEntradas;
@@ -5338,9 +5338,10 @@ async function _enviarWppComFoto(){
   const phone = '55' + String(num).replace(/\D/g,'');
   const wameUrl = 'https://wa.me/' + phone + '?text=' + encodeURIComponent(_wppDiretoMsg);
 
-  // Abre janela antecipadamente (dentro do gesto do usuário) — necessário para iOS Safari,
-  // que bloqueia window.open() chamado após operações assíncronas (await).
-  const winRef = window.open('', '_blank');
+  // iOS Safari bloqueia window.open() após await — abre janela em branco antes das operações async.
+  // Em outros navegadores (Chrome/Android) o window.open direto funciona e preserva o deep link.
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const winRef = isIOS ? window.open('', '_blank') : null;
 
   // Tenta compartilhar a foto como imagem real (Web Share API)
   if(_wppDiretoBase64 && navigator.canShare){
@@ -5361,7 +5362,7 @@ async function _enviarWppComFoto(){
     }
   }
 
-  // Fallback: redireciona para WhatsApp com texto (sem foto)
+  // Fallback: abre WhatsApp com texto (sem foto)
   if(winRef){ winRef.location.href = wameUrl; }
   else { window.open(wameUrl, '_blank'); }
 }
@@ -5735,11 +5736,12 @@ function abrirDashboard(){
     });
   });
 
-  // Ordena do mais recente ao mais antigo
+  // Ordena do mais recente ao mais antigo; usa id como desempate para itens do mesmo dia
   const _sortDesc = (a, b) => {
     const ta = a.timestamp || (a.data ? a.data.split('/').reverse().join('-') : '');
     const tb = b.timestamp || (b.data ? b.data.split('/').reverse().join('-') : '');
-    return tb.localeCompare(ta);
+    const diff = tb.localeCompare(ta);
+    return diff !== 0 ? diff : (b.id||0) - (a.id||0);
   };
   todasEntregas.sort(_sortDesc);
   todosPix.sort(_sortDesc);

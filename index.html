@@ -1503,6 +1503,7 @@ function confirmarAjusteCard(){
   if(tipo==='caixa'){
     D.recebido = novo;
     D.caixaManualOverride = novo;
+    D.saidasCaixa = 0; // override já bake-in o saldo real; zera acumulador de saídas
     let maxId=0;
     D.clientes.forEach(c=>{ (c.historico||[]).forEach(h=>{ if((h.id||0)>maxId) maxId=h.id||0; }); });
     D.caixaManualOverrideTs = maxId;
@@ -2254,16 +2255,16 @@ function entrarNoApp(){
             D.clientes[i].saldo = Math.max(0, saldo);
           }
         });
-        // ✅ Recalcula caixa respeitando ajuste manual
+        // ✅ Recalcula caixa respeitando ajuste manual e saídas para fornecedores
         if(D.caixaManualOverride !== undefined && D.caixaManualOverride !== null){
           const overrideTs = D.caixaManualOverrideTs || 0;
           let entradasNovas = 0;
           D.clientes.forEach(c=>{ (c.historico||[]).forEach(h=>{ if(h.tipo==='entrada' && (h.id||0)>overrideTs) entradasNovas += h.valor||0; }); });
-          D.recebido = D.caixaManualOverride + entradasNovas;
+          D.recebido = D.caixaManualOverride + entradasNovas - (D.saidasCaixa||0);
         } else {
           let totalRecebido = 0;
           D.clientes.forEach(c=>{ (c.historico||[]).forEach(h=>{ if(h.tipo==='entrada') totalRecebido += h.valor||0; }); });
-          D.recebido = totalRecebido;
+          D.recebido = totalRecebido - (D.saidasCaixa||0);
         }
         localStorage.setItem(keyDoUsuario(_usuario), JSON.stringify(D));
         render();
@@ -2541,6 +2542,7 @@ function save(){
         }
         // ✅ Só recalcula D.recebido automaticamente se NÃO houve ajuste manual
         // Se houve ajuste manual (caixaManualOverride), respeita o valor definido pelo gerente
+        // Em ambos os casos, desconta saídas para fornecedores (D.saidasCaixa)
         if(D.caixaManualOverride !== undefined && D.caixaManualOverride !== null){
           // Calcula entradas que chegaram da nuvem DEPOIS do ajuste manual (IDs maiores que o registrado)
           const overrideTs = D.caixaManualOverrideTs || 0;
@@ -2550,13 +2552,13 @@ function save(){
               if(h.tipo==='entrada' && (h.id||0) > overrideTs) entradasNovas += h.valor||0;
             });
           });
-          D.recebido = D.caixaManualOverride + entradasNovas;
+          D.recebido = D.caixaManualOverride + entradasNovas - (D.saidasCaixa||0);
         } else {
           let totalRecebido = 0;
           D.clientes.forEach(c=>{
             (c.historico||[]).forEach(h=>{ if(h.tipo==='entrada') totalRecebido += h.valor||0; });
           });
-          D.recebido = totalRecebido;
+          D.recebido = totalRecebido - (D.saidasCaixa||0);
         }
         localStorage.setItem(keyDoUsuario(_usuario),JSON.stringify(D));
         render();
@@ -2762,7 +2764,7 @@ function confirmarAdiantAba(origem){
   if(fi<0) return;
   if(!D.fornecedores[fi].adiantamentos) D.fornecedores[fi].adiantamentos=[];
   D.fornecedores[fi].adiantamentos.push({id:Date.now(), desc, valor, origem, data:hoje()});
-  if(origem==='caixa') D.recebido -= valor;
+  if(origem==='caixa'){ D.recebido -= valor; D.saidasCaixa = (D.saidasCaixa||0) + valor; }
   document.getElementById('adiantDescAba').value  = '';
   document.getElementById('adiantValorAba').value = '';
   save();
@@ -2901,7 +2903,7 @@ function confirmarAdiant(origem){
   
   if(!D.fornecedores[fi].adiantamentos) D.fornecedores[fi].adiantamentos=[];
   D.fornecedores[fi].adiantamentos.push({id:Date.now(), desc, valor, origem, data:hoje()});
-  if(origem==='caixa') D.recebido -= valor;
+  if(origem==='caixa'){ D.recebido -= valor; D.saidasCaixa = (D.saidasCaixa||0) + valor; }
   fecharMod('modAdiant');
   save();
   alert(`✅ Adiantamento de ${fmt(valor)} registrado para ${nomeForn}\n(${origem==='caixa'?'saiu do Caixa':'Externo'})`);
@@ -3003,7 +3005,7 @@ function confirmarPagFornRapido(origem){
   c.pago += valor;
   c.pagamentos = c.pagamentos||[];
   c.pagamentos.push({valor, origem, data:hoje()});
-  if(origem==='caixa') D.recebido -= valor;
+  if(origem==='caixa'){ D.recebido -= valor; D.saidasCaixa = (D.saidasCaixa||0) + valor; }
   _fornRapidoIdx = null;
   fecharMod('modPagarForn');
   save();
@@ -3076,7 +3078,7 @@ function confirmarPagamento(origem){
   c.pago+=valor;
   c.pagamentos=c.pagamentos||[];
   c.pagamentos.push({valor,origem,data:hoje()});
-  if(origem==='caixa') D.recebido-=valor;
+  if(origem==='caixa'){ D.recebido -= valor; D.saidasCaixa = (D.saidasCaixa||0) + valor; }
   fecharMod('modPagar');
   save();
   alert(`✅ ${fmt(valor)} pago (${origem==='caixa'?'do Caixa':'Externo'})`);
@@ -3504,8 +3506,8 @@ function filtrarRelatorio(){
 
   
   const filtro = h => mesSel==='todos' ? true : getMesAno(h.data)===mesSel;
-  const saidas   = hist.filter(h=>h.tipo==='saida'   && filtro(h)).sort((a,b)=>parseDt(a.data)-parseDt(b.data));
-  const entradas = hist.filter(h=>h.tipo==='entrada' && filtro(h)).sort((a,b)=>parseDt(a.data)-parseDt(b.data));
+  const saidas   = hist.filter(h=>h.tipo==='saida'   && filtro(h)).sort((a,b)=>{ const d=parseDt(a.data)-parseDt(b.data); return d!==0?d:(a.id||0)-(b.id||0); });
+  const entradas = hist.filter(h=>h.tipo==='entrada' && filtro(h)).sort((a,b)=>{ const d=parseDt(a.data)-parseDt(b.data); return d!==0?d:(a.id||0)-(b.id||0); });
   const totalSaidas   = saidas.reduce((s,h)=>s+h.valor,0);
   const totalEntradas = entradas.reduce((s,h)=>s+h.valor,0);
   const saldoMes = totalSaidas - totalEntradas;
@@ -3670,7 +3672,7 @@ function delNota(fi, contaId){
   if(!confirm('Apagar nota "' + (c.descricao||'esta nota') + '"?\n\nIrreversível!')) return;
   if(pago > 0){
     const devolver = confirm('💰 Devolver R$ ' + pago.toFixed(2).replace('.',',') + ' (já pagos) ao Caixa?\n\n✅ OK = Devolve ao caixa\n❌ Cancelar = Não devolve');
-    if(devolver) D.recebido += pago;
+    if(devolver){ D.recebido += pago; D.saidasCaixa = Math.max(0, (D.saidasCaixa||0) - pago); }
   }
   f.contas.splice(ci, 1);
   save();
@@ -4005,7 +4007,7 @@ function delPagForn(fi,contaId,pgi){
   const c=f.contas[ci]; const pg=(c.pagamentos||[])[pgi]; if(!pg) return alert('Pagamento não encontrado.');
   if(!confirm('Apagar pagamento de '+fmt(pg.valor)+' ('+pg.data+')?\n\nO valor voltará para a dívida.')) return;
   c.pago-=pg.valor; if(c.pago<0) c.pago=0;
-  if(pg.origem==='caixa') D.recebido+=pg.valor;
+  if(pg.origem==='caixa'){ D.recebido+=pg.valor; D.saidasCaixa = Math.max(0, (D.saidasCaixa||0) - pg.valor); }
   if(pg.origem==='credito'){
     let rd=pg.valor;
     for(let i=(f.adiantamentos||[]).length-1;i>=0&&rd>0;i--){
@@ -5251,6 +5253,20 @@ async function confirmarPagamentoIA(){
   }
 }
 
+// Abre o WhatsApp diretamente no app, sem passar por página web.
+// Android usa intent:// (bypassa Chrome completamente).
+// iOS usa whatsapp:// (funciona sem bloqueio de popup).
+function _abrirWhatsApp(phone, msg){
+  const txt = encodeURIComponent(msg);
+  if(/Android/i.test(navigator.userAgent)){
+    location.href = 'intent://send?phone=' + phone + '&text=' + txt +
+      '#Intent;scheme=whatsapp;package=com.whatsapp;S.browser_fallback_url=' +
+      encodeURIComponent('https://wa.me/' + phone + '?text=' + txt) + ';end';
+  } else {
+    location.href = 'whatsapp://send?phone=' + phone + '&text=' + txt;
+  }
+}
+
 // Guarda a mensagem, número e foto para o botão de envio direto
 let _wppDiretoMsg    = '';
 let _wppDiretoNum    = '';
@@ -5336,11 +5352,6 @@ async function _enviarWppComFoto(){
   }
 
   const phone = '55' + String(num).replace(/\D/g,'');
-  const wameUrl = 'https://wa.me/' + phone + '?text=' + encodeURIComponent(_wppDiretoMsg);
-
-  // Abre janela antecipadamente (dentro do gesto do usuário) — necessário para iOS Safari,
-  // que bloqueia window.open() chamado após operações assíncronas (await).
-  const winRef = window.open('', '_blank');
 
   // Tenta compartilhar a foto como imagem real (Web Share API)
   if(_wppDiretoBase64 && navigator.canShare){
@@ -5350,20 +5361,18 @@ async function _enviarWppComFoto(){
       const blob = await fetch('data:' + mime + ';base64,' + _wppDiretoBase64).then(r => r.blob());
       const file = new File([blob], 'comprovante.' + ext, { type: mime });
       if(navigator.canShare({ files: [file] })){
-        if(winRef) winRef.close();
         await navigator.share({ files: [file], text: _wppDiretoMsg });
-        _wppDiretoBase64 = null; // limpa após envio único
+        _wppDiretoBase64 = null;
         return;
       }
     }catch(e){
-      if(e.name === 'AbortError'){ if(winRef) winRef.close(); return; } // usuário cancelou
+      if(e.name === 'AbortError') return; // usuário cancelou
       // falha → segue para fallback
     }
   }
 
-  // Fallback: redireciona para WhatsApp com texto (sem foto)
-  if(winRef){ winRef.location.href = wameUrl; }
-  else { window.open(wameUrl, '_blank'); }
+  // Fallback: abre o app do WhatsApp diretamente (sem página intermediária).
+  _abrirWhatsApp(phone, _wppDiretoMsg);
 }
 
 function _mostrarBtnWppDireto(msg, num){
@@ -5381,7 +5390,7 @@ function enviarWppDireto(){
     return;
   }
   const phone = '55' + String(num).replace(/\D/g,'');
-  window.open('https://wa.me/'+phone+'?text='+encodeURIComponent(msg), '_blank');
+  _abrirWhatsApp(phone, msg);
 }
 
 function enviarSaldoParaGerente(){
@@ -5419,7 +5428,7 @@ function enviarSaldoParaGerente(){
   msg += (saldo > 0 ? '⚠️ Ainda possui débito.' : '✅ Conta quitada!');
 
   const phone = '55' + String(num).replace(/\D/g, '');
-  window.open('https://wa.me/' + phone + '?text=' + encodeURIComponent(msg), '_blank');
+  _abrirWhatsApp(phone, msg);
 }
 
 async function registrarPagamentoFunc(valor, obs, itensPix){
@@ -5511,8 +5520,12 @@ function _msgErroPagar(erro, status){
   if(!erro) return 'Verifique sua conexão e tente novamente.';
   if(erro === 'sem_conexao' || erro.includes('fetch') || erro.includes('network') || erro.includes('Failed'))
     return '📡 Sem conexão com o servidor.\n\nVerifique sua internet e tente novamente.';
-  if(erro === 'sessao_expirada' || erro.includes('Token') || erro.includes('token') || status === 401)
+  if(erro === 'sessao_expirada' || status === 401)
     return '🔑 Sessão expirada.\n\nFeche e abra o link novamente.';
+  if(erro.includes('Assinatura') || erro.includes('Token inv') || erro.includes('token inv'))
+    return '🔑 Link inválido ou expirado.\n\nPeça ao gerente para gerar e enviar um novo link (botão 🔗 no seu nome).';
+  if(erro.includes('Token') || erro.includes('token'))
+    return '🔑 Problema com o link de acesso.\n\nPeça ao gerente para gerar um novo link.';
   if(status === 429 || erro.includes('Muitas tentativas'))
     return '⏱️ Muitas tentativas em pouco tempo.\n\nAguarde 1 minuto e tente novamente.';
   if(erro.includes('SUPA_URL') || erro.includes('SUPA_SERVICE_KEY') || erro.includes('configuração de banco'))
@@ -5735,11 +5748,12 @@ function abrirDashboard(){
     });
   });
 
-  // Ordena do mais recente ao mais antigo
+  // Ordena do mais recente ao mais antigo; usa id como desempate para itens do mesmo dia
   const _sortDesc = (a, b) => {
     const ta = a.timestamp || (a.data ? a.data.split('/').reverse().join('-') : '');
     const tb = b.timestamp || (b.data ? b.data.split('/').reverse().join('-') : '');
-    return tb.localeCompare(ta);
+    const diff = tb.localeCompare(ta);
+    return diff !== 0 ? diff : (b.id||0) - (a.id||0);
   };
   todasEntregas.sort(_sortDesc);
   todosPix.sort(_sortDesc);
@@ -5859,7 +5873,7 @@ function enviarLinkWpp(){
     + 'Aqui está seu link de acesso para ver seu saldo, histórico e enviar comprovantes de PIX:\n\n'
     + url + '\n\n'
     + '_Guarde este link no seu celular!_';
-  window.open('https://wa.me/55'+c.wpp+'?text='+encodeURIComponent(msg),'_blank');
+  _abrirWhatsApp('55' + String(c.wpp).replace(/\D/g,''), msg);
 }
 
 function mostrarSoTelaFunc(){

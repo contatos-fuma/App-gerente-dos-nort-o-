@@ -442,7 +442,7 @@ async function rotaFuncVerificar({ token }, env, cors) {
   return json({ ok: true, payload: r.payload }, 200, cors);
 }
 
-async function rotaFuncPagar({ token, valor, obs, analiseIA, hashComprovante, urlFoto }, env, cors, ip) {
+async function rotaFuncPagar({ token, valor, obs, analiseIA, hashComprovante, urlFoto, itensPix }, env, cors, ip) {
   if (_rateLimit('pagar:' + ip, 10, 60_000)) return json({ ok: false, erro: 'Muitas tentativas' }, 429, cors);
   const jwt = await _verificarJWT(token, env);
   if (!jwt.ok) return json({ ok: false, erro: 'Token inválido: ' + jwt.erro }, 401, cors);
@@ -494,7 +494,10 @@ async function rotaFuncPagar({ token, valor, obs, analiseIA, hashComprovante, ur
     try { const [d, m, a] = ia.data_comprovante.split('/').map(Number); const [h, min] = ia.hora_comprovante.split(':').map(Number); if (!isNaN(d) && !isNaN(h)) timestampPix = new Date(a, m - 1, d, h, min).toISOString(); } catch (e) {}
   }
   dados.clientes[fi].historico = dados.clientes[fi].historico || [];
-  dados.clientes[fi].historico.push({ id: Date.now(), tipo: 'entrada', desc: obs ? 'PIX — ' + String(obs).slice(0, 200) : 'PIX enviado pelo funcionário', valor: valorNum, data: new Date().toLocaleDateString('pt-BR'), hashComprovante: hashReal, urlFoto: urlFoto ? String(urlFoto).slice(0, 500) : null, timestamp: new Date().toISOString(), timestampPix, nomeRemetente: ia.nome_remetente ? String(ia.nome_remetente).slice(0, 100) : null, nomeRecebedor: ia.nome_recebedor ? String(ia.nome_recebedor).slice(0, 100) : null, idTransacao: ia.id_transacao ? String(ia.id_transacao).slice(0, 100) : null, duplicado: !!ia.duplicado });
+  const itensPixSeguros = Array.isArray(itensPix)
+    ? itensPix.slice(0, 50).map(ip => ({ saidaId: String(ip.saidaId||'').slice(0,40), valorPago: Math.max(0, parseFloat(ip.valorPago)||0) })).filter(ip => ip.saidaId && ip.valorPago > 0)
+    : null;
+  dados.clientes[fi].historico.push({ id: Date.now(), tipo: 'entrada', desc: obs ? 'PIX — ' + String(obs).slice(0, 200) : 'PIX enviado pelo funcionário', valor: valorNum, data: new Date().toLocaleDateString('pt-BR'), hashComprovante: hashReal, urlFoto: urlFoto ? String(urlFoto).slice(0, 500) : null, timestamp: new Date().toISOString(), timestampPix, nomeRemetente: ia.nome_remetente ? String(ia.nome_remetente).slice(0, 100) : null, nomeRecebedor: ia.nome_recebedor ? String(ia.nome_recebedor).slice(0, 100) : null, idTransacao: ia.id_transacao ? String(ia.id_transacao).slice(0, 100) : null, duplicado: !!ia.duplicado, itensPix: itensPixSeguros && itensPixSeguros.length ? itensPixSeguros : null });
   dados.recebido = (dados.recebido || 0) + valorNum;
 
   // ✅ PATCH primeiro (atualiza linha existente), POST só se não existir

@@ -455,6 +455,23 @@ tr:last-child td{border-bottom:none}
 <div id="modAjusteCaixa" class="overlay" style="display:none!important"></div>
 
 
+<!-- MODAL VINCULAR PIX A DÉBITO -->
+<div id="modVincularPix" class="overlay">
+  <div class="mbox">
+    <div class="modal-handle"></div>
+    <button onclick="fecharMod('modVincularPix')" style="width:100%;padding:11px;background:#f1f5f9;border:none;border-radius:12px;font-weight:700;cursor:pointer;margin-bottom:14px;color:#475569;font-size:.85rem">✕ Fechar</button>
+    <h3 style="text-align:center;margin:0 0 4px;font-size:1rem;font-weight:800">🔗 Vincular PIX a Débito</h3>
+    <div id="vincularPixInfo" style="text-align:center;font-size:.72rem;color:#94a3b8;margin-bottom:12px"></div>
+    <div id="vincularPixItens" style="margin-bottom:12px"></div>
+    <div id="vincularPixResumo" style="display:none;background:#f0fdf4;border:1.5px solid #10b981;border-radius:10px;padding:10px;margin-bottom:12px;font-size:.78rem">
+      <div style="font-size:.62rem;color:#166534;font-weight:700;text-transform:uppercase;margin-bottom:4px">Total vinculado</div>
+      <div id="vincularPixTotal" style="font-size:1.2rem;font-weight:800;color:#16a34a">R$ 0,00</div>
+      <div id="vincularPixSobra" style="font-size:.7rem;color:#475569;margin-top:2px"></div>
+    </div>
+    <button onclick="confirmarVincularPix()" style="width:100%;padding:14px;background:#2563eb;color:#fff;border:none;border-radius:12px;font-weight:800;font-size:.95rem;cursor:pointer">✅ SALVAR VÍNCULO</button>
+  </div>
+</div>
+
 <!-- MODAL MEU WHATSAPP -->
 <div id="modMeuWpp" class="overlay">
   <div class="mbox">
@@ -3462,6 +3479,134 @@ function receberPix(){
 
 let _relIdx = null;
 
+// ── VINCULAR PIX A DÉBITO ──
+let _vincularRelIdx   = null;
+let _vincularEntradaId = null;
+let _vincularSel      = {}; // { saidaId: valorVinculado }
+let _vincularValorPix = 0;
+
+function abrirVincularPix(relIdx, entradaId){
+  const c = D.clientes[relIdx];
+  if(!c) return;
+  const entrada = (c.historico||[]).find(h=>String(h.id)===String(entradaId));
+  if(!entrada) return;
+
+  _vincularRelIdx    = relIdx;
+  _vincularEntradaId = entradaId;
+  _vincularSel       = {};
+  _vincularValorPix  = entrada.valor||0;
+
+  document.getElementById('vincularPixInfo').innerText =
+    'PIX de ' + fmt(entrada.valor) + ' — ' + (entrada.data||'') + (entrada.nomeRemetente ? ' · 👤 ' + entrada.nomeRemetente : '');
+
+  // Calcula pago por item excluindo esta entrada
+  const pagoPorItem = {};
+  (c.historico||[]).filter(h=>h.tipo==='entrada' && h.itensPix && String(h.id)!==String(entradaId)).forEach(e=>{
+    (e.itensPix||[]).forEach(ip=>{ pagoPorItem[ip.saidaId]=(pagoPorItem[ip.saidaId]||0)+(ip.valorPago||0); });
+  });
+
+  const saidas = (c.historico||[]).filter(h=>h.tipo==='saida');
+  const pendentes = saidas.filter(s=>{ const p=pagoPorItem[String(s.id)]||0; return (s.valor||0)-p>0.001; });
+
+  const box = document.getElementById('vincularPixItens');
+  if(!pendentes.length){
+    box.innerHTML = '<div style="text-align:center;color:#94a3b8;font-size:.78rem;padding:12px">Sem débitos pendentes para vincular.</div>';
+  } else {
+    box.innerHTML = pendentes.map(s=>{
+      const pago = pagoPorItem[String(s.id)]||0;
+      const restante = Math.max(0,(s.valor||0)-pago);
+      return `<div style="background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:10px;padding:10px;margin-bottom:8px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+          <input type="checkbox" id="vchk_${s.id}" onchange="_toggleVinculo('${s.id}',${restante})" style="width:18px;height:18px;accent-color:#2563eb;cursor:pointer;flex-shrink:0">
+          <div style="flex:1;min-width:0">
+            <div style="font-size:.8rem;font-weight:700;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${s.desc||'Item'}</div>
+            <div style="font-size:.65rem;color:#64748b">${s.data||''} · Falta: <b style="color:#dc2626">${fmt(restante)}</b></div>
+          </div>
+        </div>
+        <div id="vincRow_${s.id}" style="display:none;display:flex;align-items:center;gap:6px">
+          <span style="font-size:.7rem;color:#475569;white-space:nowrap">Valor:</span>
+          <input type="number" id="vval_${s.id}" value="${restante.toFixed(2)}" max="${restante}" min="0.01" step="0.01" inputmode="decimal"
+            oninput="_atualizarVinculo('${s.id}',${restante})"
+            style="flex:1;padding:6px 8px;border:1.5px solid #2563eb;border-radius:6px;font-size:.85rem;font-weight:700;text-align:center;background:#fff">
+          <button onclick="_vincularTudo('${s.id}',${restante})" style="background:#2563eb;color:#fff;border:none;padding:6px 8px;border-radius:6px;font-size:.62rem;font-weight:700;cursor:pointer;white-space:nowrap">Tudo</button>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  document.getElementById('vincularPixResumo').style.display='none';
+  document.getElementById('modVincularPix').classList.add('on');
+}
+
+function _toggleVinculo(saidaId, restante){
+  const chk = document.getElementById('vchk_'+saidaId);
+  const row = document.getElementById('vincRow_'+saidaId);
+  if(chk && chk.checked){
+    _vincularSel[saidaId] = Math.min(restante, _vincularValorPix);
+    if(row) row.style.display='flex';
+    const inp = document.getElementById('vval_'+saidaId);
+    if(inp) inp.value = _vincularSel[saidaId].toFixed(2);
+  } else {
+    delete _vincularSel[saidaId];
+    if(row) row.style.display='none';
+  }
+  _atualizarVincularResumo();
+}
+
+function _atualizarVinculo(saidaId, restante){
+  const inp = document.getElementById('vval_'+saidaId);
+  if(!inp) return;
+  let v = parseFloat(inp.value)||0;
+  if(v > restante){ v=restante; inp.value=restante.toFixed(2); }
+  if(v < 0) v=0;
+  _vincularSel[saidaId] = v;
+  _atualizarVincularResumo();
+}
+
+function _vincularTudo(saidaId, restante){
+  _vincularSel[saidaId] = restante;
+  const inp = document.getElementById('vval_'+saidaId);
+  if(inp) inp.value = restante.toFixed(2);
+  _atualizarVincularResumo();
+}
+
+function _atualizarVincularResumo(){
+  const total = Object.values(_vincularSel).reduce((s,v)=>s+(+v||0),0);
+  const box   = document.getElementById('vincularPixResumo');
+  const elTot = document.getElementById('vincularPixTotal');
+  const elSob = document.getElementById('vincularPixSobra');
+  if(Object.keys(_vincularSel).length && total>0){
+    box.style.display='block';
+    if(elTot) elTot.innerText = fmt(total);
+    const sobra = _vincularValorPix - total;
+    if(elSob) elSob.innerText = sobra > 0.001 ? '⚠️ Sobram ' + fmt(sobra) + ' sem vínculo' : '✅ PIX totalmente vinculado';
+    if(elSob) elSob.style.color = sobra > 0.001 ? '#b45309' : '#16a34a';
+  } else {
+    box.style.display='none';
+  }
+}
+
+function confirmarVincularPix(){
+  const c = D.clientes[_vincularRelIdx];
+  if(!c) return;
+  const entrada = (c.historico||[]).find(h=>String(h.id)===String(_vincularEntradaId));
+  if(!entrada) return;
+
+  const itens = Object.entries(_vincularSel)
+    .filter(([,v])=>(+v||0)>0)
+    .map(([saidaId,valorPago])=>({saidaId,valorPago:+valorPago}));
+  if(!itens.length) return alert('Selecione pelo menos um débito para vincular.');
+
+  const total = itens.reduce((s,ip)=>s+ip.valorPago,0);
+  if(total > entrada.valor + 0.01) return alert('Total vinculado (' + fmt(total) + ') é maior que o valor do PIX (' + fmt(entrada.valor) + ').');
+
+  entrada.itensPix = itens;
+  save();
+  fecharMod('modVincularPix');
+  filtrarRelatorio();
+  alert('✅ PIX vinculado com sucesso!');
+}
+
 function parseDt(d){ if(!d) return 0; const p=d.split('/'); return p.length===3?new Date(p[2],p[1]-1,p[0]).getTime():0; }
 function getMesAno(d){ if(!d) return null; const p=d.split('/'); return p.length===3?p[1]+'/'+p[2]:null; }
 function nomeMes(mm){ const n=['','Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']; return n[+mm]||mm; }
@@ -3563,6 +3708,8 @@ function filtrarRelatorio(){
               <span>📦 ${nomeItem}</span><b>${fmt(ip.valorPago)}</b></div>`;
           });
           itensBreakdown += `</div>`;
+        } else {
+          itensBreakdown = `<div style="margin-top:4px"><button onclick="abrirVincularPix(${_relIdx},'${h.id||''}')" style="background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe;border-radius:6px;padding:4px 10px;font-size:.65rem;font-weight:700;cursor:pointer">🔗 Vincular a débito</button></div>`;
         }
         preview+=`<div style="font-size:.78rem;padding:6px 0;border-bottom:1px solid #f1f5f9">
           <div style="display:flex;justify-content:space-between;align-items:center;gap:4px">

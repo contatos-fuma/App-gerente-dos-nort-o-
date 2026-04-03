@@ -5520,8 +5520,12 @@ function _msgErroPagar(erro, status){
   if(!erro) return 'Verifique sua conexão e tente novamente.';
   if(erro === 'sem_conexao' || erro.includes('fetch') || erro.includes('network') || erro.includes('Failed'))
     return '📡 Sem conexão com o servidor.\n\nVerifique sua internet e tente novamente.';
-  if(erro === 'sessao_expirada' || erro.includes('Token') || erro.includes('token') || status === 401)
+  if(erro === 'sessao_expirada' || status === 401)
     return '🔑 Sessão expirada.\n\nFeche e abra o link novamente.';
+  if(erro.includes('Assinatura') || erro.includes('Token inv') || erro.includes('token inv'))
+    return '🔑 Link inválido ou expirado.\n\nPeça ao gerente para gerar e enviar um novo link (botão 🔗 no seu nome).';
+  if(erro.includes('Token') || erro.includes('token'))
+    return '🔑 Problema com o link de acesso.\n\nPeça ao gerente para gerar um novo link.';
   if(status === 429 || erro.includes('Muitas tentativas'))
     return '⏱️ Muitas tentativas em pouco tempo.\n\nAguarde 1 minuto e tente novamente.';
   if(erro.includes('SUPA_URL') || erro.includes('SUPA_SERVICE_KEY') || erro.includes('configuração de banco'))
@@ -5869,7 +5873,7 @@ function enviarLinkWpp(){
     + 'Aqui está seu link de acesso para ver seu saldo, histórico e enviar comprovantes de PIX:\n\n'
     + url + '\n\n'
     + '_Guarde este link no seu celular!_';
-  window.open('https://wa.me/55'+c.wpp+'?text='+encodeURIComponent(msg),'_blank');
+  _abrirWhatsApp('55' + String(c.wpp).replace(/\D/g,''), msg);
 }
 
 function mostrarSoTelaFunc(){

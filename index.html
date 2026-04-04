@@ -1591,7 +1591,7 @@ function abrirSuporte(){
   const num = localStorage.getItem(SUPORTE_KEY);
   if(!num) return;
   const msg = '👋 Olá! Estou usando o app *Gestão Inteligente* e preciso de ajuda.';
-  window.open('https://wa.me/55' + num + '?text=' + encodeURIComponent(msg), '_blank');
+  _abrirWhatsApp('55' + num, msg);
 }
 
 function salvarChaveIAAdmin(){
@@ -3235,14 +3235,14 @@ function cobrarTodos(){
     html += `<div style="font-size:.65rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">Ou envie individualmente:</div>`;
     D.clientes.forEach(c=>{
       const msg = montarRelatorio(c);
-      const wppUrl = c.wpp ? `https://wa.me/55${c.wpp}?text=${encodeURIComponent(msg)}` : null;
+      const hasWpp = !!c.wpp;
       html+=`<div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:10px 12px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;gap:10px">
         <div>
           <b style="font-size:.85rem">👤 ${c.nome}</b><br>
           <small style="color:${c.saldo>0?'#dc2626':'#16a34a'};font-weight:700">${c.saldo>0?'❗ '+fmt(c.saldo):'✅ Em dia'}</small>
         </div>
-        ${wppUrl
-          ? `<a href="${wppUrl}" target="_blank" style="background:#25d366;color:#fff;padding:8px 12px;border-radius:8px;font-weight:700;text-decoration:none;font-size:.75rem;white-space:nowrap">📲 Enviar</a>`
+        ${hasWpp
+          ? `<button onclick="_abrirWhatsApp('55${c.wpp}',${JSON.stringify(msg)})" style="background:#25d366;color:#fff;padding:8px 12px;border-radius:8px;font-weight:700;border:none;cursor:pointer;font-size:.75rem;white-space:nowrap">📲 Enviar</button>`
           : `<span style="color:#94a3b8;font-size:.72rem">Sem WhatsApp</span>`
         }
       </div>`;
@@ -3807,7 +3807,7 @@ function filtrarRelatorio(){
       msg+=`\n✅ *Período totalmente quitado. Obrigado!*`;
     }
 
-    window.open(`https://wa.me/55${c.wpp}?text=${encodeURIComponent(msg)}`,'_blank');
+    _abrirWhatsApp('55'+c.wpp, msg);
   };
 }
 function delAdiant(fi,ai){ if(!confirm('Remover este adiantamento?')) return; D.fornecedores[fi].adiantamentos.splice(ai,1); save(); }
@@ -4225,7 +4225,7 @@ function enviarRelatorio(destino){
   });
   if(!D.fornecedores.length) msg+='Nenhum fornecedor\n';
   msg+='\n'+'━'.repeat(28)+'\n_Enviado pelo app Gestão Inteligente 🚩_';
-  window.open('https://wa.me/55'+numero+'?text='+encodeURIComponent(msg),'_blank');
+  _abrirWhatsApp('55'+numero, msg);
 }
 
 let _funcAtual = null; 
@@ -5407,7 +5407,7 @@ function _abrirWhatsApp(phone, msg){
   const txt = encodeURIComponent(msg);
   if(/Android/i.test(navigator.userAgent)){
     location.href = 'intent://send?phone=' + phone + '&text=' + txt +
-      '#Intent;scheme=whatsapp;package=com.whatsapp;S.browser_fallback_url=' +
+      '#Intent;scheme=whatsapp;S.browser_fallback_url=' +
       encodeURIComponent('https://wa.me/' + phone + '?text=' + txt) + ';end';
   } else {
     location.href = 'whatsapp://send?phone=' + phone + '&text=' + txt;

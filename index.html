@@ -5838,7 +5838,7 @@ function gerarLinkFunc(i){
       alert(msg);
       return;
     }
-    const base = 'https://app-gerente-dos-nort-o.pages.dev';
+    const base = window.location.origin;
     const link = base + '?func=' + data.token;
     document.getElementById('linkFuncNome').innerText = '🔗 Link de ' + c.nome;
     document.getElementById('linkFuncUrl').innerText = link;

@@ -1504,6 +1504,7 @@ function confirmarAjusteCard(){
     D.recebido = novo;
     D.caixaManualOverride = novo;
     D.saidasCaixa = 0; // override já bake-in o saldo real; zera acumulador de saídas
+    D.caixaExtra = 0;  // idem — valor extra de entradas removidas já está no override
     let maxId=0;
     D.clientes.forEach(c=>{ (c.historico||[]).forEach(h=>{ if((h.id||0)>maxId) maxId=h.id||0; }); });
     D.caixaManualOverrideTs = maxId;
@@ -2260,11 +2261,11 @@ function entrarNoApp(){
           const overrideTs = D.caixaManualOverrideTs || 0;
           let entradasNovas = 0;
           D.clientes.forEach(c=>{ (c.historico||[]).forEach(h=>{ if(h.tipo==='entrada' && (h.id||0)>overrideTs) entradasNovas += h.valor||0; }); });
-          D.recebido = D.caixaManualOverride + entradasNovas - (D.saidasCaixa||0);
+          D.recebido = D.caixaManualOverride + entradasNovas + (D.caixaExtra||0) - (D.saidasCaixa||0);
         } else {
           let totalRecebido = 0;
           D.clientes.forEach(c=>{ (c.historico||[]).forEach(h=>{ if(h.tipo==='entrada') totalRecebido += h.valor||0; }); });
-          D.recebido = totalRecebido - (D.saidasCaixa||0);
+          D.recebido = totalRecebido + (D.caixaExtra||0) - (D.saidasCaixa||0);
         }
         localStorage.setItem(keyDoUsuario(_usuario), JSON.stringify(D));
         render();
@@ -2552,13 +2553,13 @@ function save(){
               if(h.tipo==='entrada' && (h.id||0) > overrideTs) entradasNovas += h.valor||0;
             });
           });
-          D.recebido = D.caixaManualOverride + entradasNovas - (D.saidasCaixa||0);
+          D.recebido = D.caixaManualOverride + entradasNovas + (D.caixaExtra||0) - (D.saidasCaixa||0);
         } else {
           let totalRecebido = 0;
           D.clientes.forEach(c=>{
             (c.historico||[]).forEach(h=>{ if(h.tipo==='entrada') totalRecebido += h.valor||0; });
           });
-          D.recebido = totalRecebido - (D.saidasCaixa||0);
+          D.recebido = totalRecebido + (D.caixaExtra||0) - (D.saidasCaixa||0);
         }
         localStorage.setItem(keyDoUsuario(_usuario),JSON.stringify(D));
         render();
@@ -3810,12 +3811,17 @@ function delEst(id){
 function delFunc(i){
   const c = D.clientes[i];
   if(!c) return;
+  // Calcula total de PIX já recebidos deste funcionário (estão no caixa via fórmula)
+  const totalPixFunc = (c.historico||[]).reduce((s,h)=>h.tipo==='entrada'?s+(h.valor||0):s, 0);
   if(c.saldo > 0){
     if(!confirm('⚠️ ATENÇÃO!\n\n' + c.nome + ' ainda possui saldo devedor de ' + fmt(c.saldo) + '.\n\nDeseja apagar mesmo assim?')) return;
     const devolver = confirm('💰 Devolver ' + fmt(c.saldo) + ' ao Caixa?\n\n✅ OK = Devolve ao caixa\n❌ Cancelar = Não devolve');
-    if(devolver) D.recebido += c.saldo;
+    // Preserva no caixa os PIX já recebidos + (opcionalmente) o saldo devedor
+    D.caixaExtra = (D.caixaExtra||0) + totalPixFunc + (devolver ? c.saldo : 0);
   } else {
     if(!confirm('Apagar funcionário ' + c.nome + '?')) return;
+    // Mesmo sem saldo devedor, preserva os PIX recebidos que serão removidos com o histórico
+    D.caixaExtra = (D.caixaExtra||0) + totalPixFunc;
   }
   D.clientes.splice(i, 1);
   save();
@@ -3953,7 +3959,7 @@ async function delPix(ci, pixId, valor){
         cor: '#16a34a', bg: '#f0fdf4', border: '#86efac',
         acao: async () => {
           c.historico.splice(idx, 1);
-          D.recebido += valor;
+          D.caixaExtra = (D.caixaExtra||0) + valor; // mantém o valor no caixa mesmo sem o registro no histórico
           await _salvarDepoisDelPix(ci, valor, h);
         }
       },
@@ -4028,10 +4034,10 @@ function resetSeletivo(tipo){
   const msgs={historico:'Limpar todo o histórico de entregas?\n\nFuncionários serão mantidos mas saldos zerados.',caixa:'Zerar o caixa?',estoque:'Limpar todo o estoque?',clientes:'Apagar TODOS os funcionários?\n\nIrreversível!',fornecedores:'Apagar TODOS os fornecedores e notas?\n\nIrreversível!',tudo:'⚠️ APAGAR TUDO?\n\nEstoque, funcionários, fornecedores e caixa.\n\nIrreversível!'};
   if(!confirm(msgs[tipo])) return;
   if(prompt('Digite  CONFIRMAR  para prosseguir:')!=='CONFIRMAR') return alert('❌ Cancelado.');
-  if(tipo==='historico'){ D.clientes.forEach(c=>{c.historico=[];c.saldo=0;}); D.recebido=0; D.caixaManualOverride=null; D.caixaManualOverrideTs=null; }
-  else if(tipo==='caixa'){ D.recebido=0; D.caixaManualOverride=null; D.caixaManualOverrideTs=null; }
+  if(tipo==='historico'){ D.clientes.forEach(c=>{c.historico=[];c.saldo=0;}); D.recebido=0; D.caixaManualOverride=null; D.caixaManualOverrideTs=null; D.caixaExtra=0; }
+  else if(tipo==='caixa'){ D.recebido=0; D.caixaManualOverride=null; D.caixaManualOverrideTs=null; D.caixaExtra=0; }
   else if(tipo==='estoque'){ D.estoque=[]; D.custoOverride=null; }
-  else if(tipo==='clientes'){ D.clientes=[]; D.recebido=0; D.receberOverride=null; D.caixaManualOverride=null; D.caixaManualOverrideTs=null; _relIdx=null; }
+  else if(tipo==='clientes'){ D.clientes=[]; D.recebido=0; D.receberOverride=null; D.caixaManualOverride=null; D.caixaManualOverrideTs=null; D.caixaExtra=0; _relIdx=null; }
   else if(tipo==='fornecedores'){ D.fornecedores=[]; D.fornecOverride=null; fornAberto={}; _pagFi=null;_pagCi=null;_fornRapidoIdx=null; }
   else if(tipo==='tudo'){ D={estoque:[],clientes:[],fornecedores:[],recebido:0}; fornAberto={}; _relIdx=null; _pagFi=null;_pagCi=null;_fornRapidoIdx=null; }
   fecharMod('modReset'); save(); alert('✅ Concluído!');

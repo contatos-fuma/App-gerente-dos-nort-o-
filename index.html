@@ -480,7 +480,7 @@ tr:last-child td{border-bottom:none}
   <div class="mbox">
     <div class="modal-handle"></div>
     <button onclick="fecharMod('modAddFunc')" style="width:100%;padding:11px;background:#f1f5f9;border:none;border-radius:12px;font-weight:700;cursor:pointer;margin-bottom:18px;color:#475569;font-size:.85rem">✕ Fechar</button>
-    <h3 style="text-align:center;margin:0 0 20px;font-size:1.1rem;font-weight:800">👤 Novo Funcionário</h3>
+    <h3 id="modAddFuncTitulo" style="text-align:center;margin:0 0 20px;font-size:1.1rem;font-weight:800">👤 Novo Funcionário</h3>
 
     <label>Nome</label>
     <input id="cNome" placeholder="Nome completo" style="margin-bottom:14px">
@@ -488,7 +488,7 @@ tr:last-child td{border-bottom:none}
     <label>WhatsApp <span style="font-weight:400;color:#94a3b8">(opcional)</span></label>
     <input id="cWpp" type="number" placeholder="65999999999" style="margin-bottom:20px">
 
-    <button onclick="addFunc()"
+    <button id="modAddFuncBtn" onclick="salvarFunc()"
       style="width:100%;padding:16px;background:#2563eb;color:#fff;border:none;border-radius:14px;font-weight:800;font-size:1rem;cursor:pointer;box-shadow:0 4px 12px rgba(37,99,235,.3)">
       ✅ CADASTRAR
     </button>
@@ -2811,6 +2811,7 @@ function _renderFuncionarios(){
         </div>
         <div style="display:flex;gap:6px;flex-shrink:0">
           <button class="bc" onclick="abrirRelatorio(${i})" title="Relatório">📊</button>
+          <button style="background:#f0fdf4;color:#15803d;border:none;padding:8px;border-radius:8px;cursor:pointer;font-weight:700;font-size:.75rem" onclick="abrirModalEditFunc(${i})" title="Editar dados">📝</button>
           <button style="background:#dbeafe;color:#1d4ed8;border:none;padding:8px;border-radius:8px;cursor:pointer;font-weight:700;font-size:.75rem" onclick="editarSaldoFunc(${i})" title="Editar saldo">✏️</button>
           <button style="background:#0ea5e9;color:#fff;border:none;padding:8px;border-radius:8px;cursor:pointer;font-weight:700;font-size:.75rem" onclick="gerarLinkFunc(${i})" title="Gerar link">🔗</button>
           <button class="bd" onclick="delFunc(${i})" title="Excluir">🗑️</button>
@@ -3410,22 +3411,49 @@ function addProduto(){
     alert(`✅ Nota criada: ${n} x${q} = ${fmt(total)}`);
   }
 }
+let _editFuncIdx = null;
+
 function abrirModalAddFunc(){
+  _editFuncIdx = null;
   document.getElementById('cNome').value = '';
   document.getElementById('cWpp').value  = '';
+  document.getElementById('modAddFuncTitulo').innerText = '👤 Novo Funcionário';
+  document.getElementById('modAddFuncBtn').innerText    = '✅ CADASTRAR';
   document.getElementById('modAddFunc').classList.add('on');
   setTimeout(()=> document.getElementById('cNome').focus(), 300);
 }
 
-function addFunc(){
+function abrirModalEditFunc(i){
+  const c = D.clientes[i]; if(!c) return;
+  _editFuncIdx = i;
+  document.getElementById('cNome').value = c.nome;
+  document.getElementById('cWpp').value  = c.wpp || '';
+  document.getElementById('modAddFuncTitulo').innerText = '✏️ Editar Funcionário';
+  document.getElementById('modAddFuncBtn').innerText    = '✅ SALVAR';
+  document.getElementById('modAddFunc').classList.add('on');
+  setTimeout(()=> document.getElementById('cNome').focus(), 300);
+}
+
+function salvarFunc(){
   const n = document.getElementById('cNome').value.trim();
   const w = document.getElementById('cWpp').value.trim();
   if(!n) return alert('Digite o nome do funcionário.');
-  if(D.clientes.find(c => c.nome.toLowerCase() === n.toLowerCase()))
-    return alert('Já existe um funcionário com este nome.');
-  D.clientes.push({ nome:n, wpp:w, saldo:0, historico:[] });
-  document.getElementById('cNome').value = '';
-  document.getElementById('cWpp').value  = '';
+
+  if(_editFuncIdx !== null){
+    const c = D.clientes[_editFuncIdx];
+    const nomeAlterado = n.toLowerCase() !== c.nome.toLowerCase();
+    if(nomeAlterado && D.clientes.find((x,i)=> i!==_editFuncIdx && x.nome.toLowerCase()===n.toLowerCase()))
+      return alert('Já existe um funcionário com este nome.');
+    if(nomeAlterado && !confirm('⚠️ Alterar o nome de "'+c.nome+'" para "'+n+'"?\n\nLinks gerados antes desta alteração deixarão de funcionar — gere um novo link após salvar.'))
+      return;
+    c.nome = n;
+    c.wpp  = w;
+  } else {
+    if(D.clientes.find(c => c.nome.toLowerCase() === n.toLowerCase()))
+      return alert('Já existe um funcionário com este nome.');
+    D.clientes.push({ nome:n, wpp:w, saldo:0, historico:[] });
+  }
+
   fecharMod('modAddFunc');
   save();
   _renderFuncionarios();

@@ -983,8 +983,8 @@ tr:last-child td{border-bottom:none}
       </div>
       <div style="font-size:.78rem;color:#475569;line-height:1.7;padding-left:34px">
         Ainda na aba <b>📦 ENTREGA</b><br>
-        No bloco verde, selecione o funcionário, digite o valor recebido<br>
-        Toque em <b>GRAVAR ACERTO</b><br>
+        No bloco verde, selecione o funcionário, toque em <b>GRAVAR ACERTO</b><br>
+        Selecione quais itens estão sendo pagos e confirme o valor<br>
         O valor entra no <b>Caixa</b> automaticamente.
       </div>
     </div>
@@ -4079,9 +4079,7 @@ async function _salvarDepoisDelSaida(ci, valor){
 }
 
 async function delSaida(ci, saidaId, valor){
-  if(!confirm('Apagar entrega de '+fmt(valor)+'?')) return;
   const c = D.clientes[ci]; if(!c) return;
-
   let idx = c.historico.findIndex(h => h.tipo==='saida' && String(h.id)===String(saidaId));
   if(idx < 0){
     idx = c.historico.findIndex(h => h.tipo==='saida' && h.valor===valor);
@@ -4089,42 +4087,14 @@ async function delSaida(ci, saidaId, valor){
   }
   const h = c.historico[idx];
   const temEstoque = !!(h.prodId && D.estoque.findIndex(p=>p.id===h.prodId) >= 0 && h.qtd);
-  const nomeProd = h.desc || 'produto';
-  const qtd = h.qtd || 0;
-
-  _abrirModalOpcao({
-    icone: '📦',
-    titulo: 'Como apagar esta entrega?',
-    desc: fmt(valor) + ' — ' + nomeProd + ' · ' + (h.data||''),
-    info: temEstoque ? (qtd + ' un. de "' + nomeProd + '"') : undefined,
-    infoLabel: temEstoque ? 'Quantidade entregue' : undefined,
-    infoCor: '#f59e0b',
-    opcoes: [
-      {
-        label: '↩️ Devolver ao estoque',
-        desc: 'Remove do histórico e devolve ' + (temEstoque ? qtd+' un.' : 'a quantidade') + ' ao estoque',
-        cor: '#d97706', bg: '#fffbeb', border: '#fde68a',
-        acao: async () => {
-          c.historico.splice(idx, 1);
-          if(temEstoque){
-            const pi = D.estoque.findIndex(p=>p.id===h.prodId);
-            if(pi>=0) D.estoque[pi].qtd += h.qtd;
-          }
-          await _salvarDepoisDelSaida(ci, valor);
-        }
-      },
-      {
-        label: '🗑️ Limpar só do histórico',
-        desc: 'Remove o registro mas o estoque fica como está',
-        cor: '#dc2626', bg: '#fef2f2', border: '#fecaca',
-        acao: async () => {
-          c.historico.splice(idx, 1);
-          // estoque não é alterado
-          await _salvarDepoisDelSaida(ci, valor);
-        }
-      }
-    ]
-  });
+  const detalhe = (h.desc||'entrega') + (temEstoque ? ' · ' + h.qtd + ' un. voltam ao estoque' : '');
+  if(!confirm('Apagar ' + fmt(valor) + ' — ' + detalhe + '?')) return;
+  c.historico.splice(idx, 1);
+  if(temEstoque){
+    const pi = D.estoque.findIndex(p=>p.id===h.prodId);
+    if(pi>=0) D.estoque[pi].qtd += h.qtd;
+  }
+  await _salvarDepoisDelSaida(ci, valor);
 }
 
 async function delPix(ci, pixId, valor){
@@ -4141,35 +4111,10 @@ async function delPix(ci, pixId, valor){
   }
   const h = c.historico[idx];
 
-  _abrirModalOpcao({
-    icone: '💸',
-    titulo: 'Como apagar este PIX?',
-    desc: fmt(valor) + (h.data ? ' — ' + h.data : '') + (h.nomeRemetente ? ' · ' + h.nomeRemetente : ''),
-    info: fmt(D.recebido),
-    infoLabel: 'Caixa atual',
-    infoCor: '#16a34a',
-    opcoes: [
-      {
-        label: '↩️ Devolver ao caixa',
-        desc: 'Remove o pagamento e devolve ' + fmt(valor) + ' ao caixa',
-        cor: '#16a34a', bg: '#f0fdf4', border: '#86efac',
-        acao: async () => {
-          c.historico.splice(idx, 1);
-          D.caixaExtra = (D.caixaExtra||0) + valor; // mantém o valor no caixa mesmo sem o registro no histórico
-          await _salvarDepoisDelPix(ci, valor, h);
-        }
-      },
-      {
-        label: '🗑️ Limpar só do histórico',
-        desc: 'Remove o registro mas o caixa não é alterado',
-        cor: '#dc2626', bg: '#fef2f2', border: '#fecaca',
-        acao: async () => {
-          c.historico.splice(idx, 1);
-          await _salvarDepoisDelPix(ci, valor, h);
-        }
-      }
-    ]
-  });
+  const detalhe = fmt(valor) + (h.data ? ' — ' + h.data : '') + (h.nomeRemetente ? ' · ' + h.nomeRemetente : '');
+  if(!confirm('Apagar pagamento de ' + detalhe + '?\n\nO valor será removido do caixa.')) return;
+  c.historico.splice(idx, 1);
+  await _salvarDepoisDelPix(ci, valor, h);
 }
 
 async function _salvarDepoisDelPix(ci, valor, h){

@@ -4151,6 +4151,17 @@ async function _salvarDepoisDelPix(ci, valor, h){
     else if(item.tipo==='entrada') saldo -= item.valor||0;
   });
   c.saldo = Math.max(0, saldo);
+  // Recalcula caixa imediatamente (sem depender do save() assíncrono)
+  if(D.caixaManualOverride !== undefined && D.caixaManualOverride !== null){
+    const overrideTs = D.caixaManualOverrideTs || 0;
+    let entradasNovas = 0;
+    D.clientes.forEach(cl=>{ (cl.historico||[]).forEach(hh=>{ if(hh.tipo==='entrada' && (hh.id||0)>overrideTs) entradasNovas += hh.valor||0; }); });
+    D.recebido = D.caixaManualOverride + entradasNovas + (D.caixaExtra||0) - (D.saidasCaixa||0);
+  } else {
+    let totalRecebido = 0;
+    D.clientes.forEach(cl=>{ (cl.historico||[]).forEach(hh=>{ if(hh.tipo==='entrada') totalRecebido += hh.valor||0; }); });
+    D.recebido = totalRecebido + (D.caixaExtra||0) - (D.saidasCaixa||0);
+  }
   localStorage.setItem(keyDoUsuario(_usuario), JSON.stringify(D));
   render();
   const elSaldo = document.getElementById('modFuncSaldo');

@@ -3618,7 +3618,7 @@ function _atualizarResumoAcerto(){
       const s = saidas.find(x=>String(x.id)===String(id));
       return `• ${s?s.desc:'Item'}: <b>${fmt(+v)}</b>`;
     }).join('<br>');
-    if(elVal && (parseFloat(elVal.value)||0) === 0) elVal.value = total.toFixed(2);
+    if(elVal) elVal.value = total.toFixed(2);
   } else {
     if(box) box.style.display = 'none';
     if(itens.length===0 && elVal) elVal.value = '';
@@ -3809,6 +3809,12 @@ function filtrarRelatorio(){
   document.getElementById('btnWpp').onclick = ()=>{
     if(!c.wpp) return alert('Sem WhatsApp cadastrado');
 
+    // Soma tudo que já foi pago por item em todo o histórico
+    const pagoPorItemWpp = {};
+    hist.filter(hh=>hh.tipo==='entrada'&&hh.itensPix).forEach(e=>{
+      (e.itensPix||[]).forEach(ip=>{ pagoPorItemWpp[String(ip.saidaId)]=(pagoPorItemWpp[String(ip.saidaId)]||0)+(ip.valorPago||0); });
+    });
+
     const saldoMesWpp = totalSaidas - totalEntradas;
     let msg = '';
     msg += `📋 *RELATÓRIO DE CONTA*\n`;
@@ -3822,7 +3828,11 @@ function filtrarRelatorio(){
       let dataAtual='';
       saidas.forEach(h=>{
         if(h.data!==dataAtual){ msg+=`\n📅 *${h.data}*\n`; dataAtual=h.data; }
-        msg+=`🔸 ${h.desc} ➜ *${fmt(h.valor)}*\n`;
+        const pago = pagoPorItemWpp[String(h.id)]||0;
+        const restante = Math.max(0, (h.valor||0) - pago);
+        const pagoStr = pago > 0 ? ` | Pago: ${fmt(pago)}` : '';
+        const faltaStr = restante > 0.005 ? ` | ⚠️ Falta: *${fmt(restante)}*` : ' | ✅ Quitado';
+        msg+=`🔸 ${h.desc} ➜ ${fmt(h.valor)}${pagoStr}${faltaStr}\n`;
       });
       msg+=`\n📦 *Total entregue: ${fmt(totalSaidas)}*\n`;
     } else {
@@ -4151,6 +4161,17 @@ async function _salvarDepoisDelPix(ci, valor, h){
     else if(item.tipo==='entrada') saldo -= item.valor||0;
   });
   c.saldo = Math.max(0, saldo);
+  // Recalcula caixa imediatamente (sem depender do save() assíncrono)
+  if(D.caixaManualOverride !== undefined && D.caixaManualOverride !== null){
+    const overrideTs = D.caixaManualOverrideTs || 0;
+    let entradasNovas = 0;
+    D.clientes.forEach(cl=>{ (cl.historico||[]).forEach(hh=>{ if(hh.tipo==='entrada' && (hh.id||0)>overrideTs) entradasNovas += hh.valor||0; }); });
+    D.recebido = D.caixaManualOverride + entradasNovas + (D.caixaExtra||0) - (D.saidasCaixa||0);
+  } else {
+    let totalRecebido = 0;
+    D.clientes.forEach(cl=>{ (cl.historico||[]).forEach(hh=>{ if(hh.tipo==='entrada') totalRecebido += hh.valor||0; }); });
+    D.recebido = totalRecebido + (D.caixaExtra||0) - (D.saidasCaixa||0);
+  }
   localStorage.setItem(keyDoUsuario(_usuario), JSON.stringify(D));
   render();
   const elSaldo = document.getElementById('modFuncSaldo');

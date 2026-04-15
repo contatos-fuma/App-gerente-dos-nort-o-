@@ -4111,10 +4111,36 @@ async function delPix(ci, pixId, valor){
   }
   const h = c.historico[idx];
 
-  const detalhe = fmt(valor) + (h.data ? ' — ' + h.data : '') + (h.nomeRemetente ? ' · ' + h.nomeRemetente : '');
-  if(!confirm('Apagar pagamento de ' + detalhe + '?\n\nO valor será removido do caixa.')) return;
-  c.historico.splice(idx, 1);
-  await _salvarDepoisDelPix(ci, valor, h);
+  _abrirModalOpcao({
+    icone: '💸',
+    titulo: 'Apagar este PIX?',
+    desc: fmt(valor) + (h.data ? ' — ' + h.data : '') + (h.nomeRemetente ? ' · ' + h.nomeRemetente : ''),
+    info: fmt(D.recebido),
+    infoLabel: 'Caixa atual',
+    infoCor: '#16a34a',
+    opcoes: [
+      {
+        label: '💸 Apagar e retirar do caixa',
+        desc: 'Remove o pagamento — o valor sai do caixa',
+        cor: '#dc2626', bg: '#fef2f2', border: '#fecaca',
+        acao: async () => {
+          c.historico.splice(idx, 1);
+          // sem caixaExtra — a fórmula recalcula sem esta entrada e o caixa diminui
+          await _salvarDepoisDelPix(ci, valor, h);
+        }
+      },
+      {
+        label: '🗑️ Apagar só o histórico',
+        desc: 'Remove o registro mas o dinheiro permanece no caixa',
+        cor: '#d97706', bg: '#fffbeb', border: '#fde68a',
+        acao: async () => {
+          c.historico.splice(idx, 1);
+          D.caixaExtra = (D.caixaExtra||0) + valor; // compensa a remoção — caixa não muda
+          await _salvarDepoisDelPix(ci, valor, h);
+        }
+      }
+    ]
+  });
 }
 
 async function _salvarDepoisDelPix(ci, valor, h){

@@ -480,7 +480,7 @@ tr:last-child td{border-bottom:none}
   <div class="mbox">
     <div class="modal-handle"></div>
     <button onclick="fecharMod('modAddFunc')" style="width:100%;padding:11px;background:#f1f5f9;border:none;border-radius:12px;font-weight:700;cursor:pointer;margin-bottom:18px;color:#475569;font-size:.85rem">✕ Fechar</button>
-    <h3 style="text-align:center;margin:0 0 20px;font-size:1.1rem;font-weight:800">👤 Novo Funcionário</h3>
+    <h3 id="modAddFuncTitulo" style="text-align:center;margin:0 0 20px;font-size:1.1rem;font-weight:800">👤 Novo Funcionário</h3>
 
     <label>Nome</label>
     <input id="cNome" placeholder="Nome completo" style="margin-bottom:14px">
@@ -488,9 +488,47 @@ tr:last-child td{border-bottom:none}
     <label>WhatsApp <span style="font-weight:400;color:#94a3b8">(opcional)</span></label>
     <input id="cWpp" type="number" placeholder="65999999999" style="margin-bottom:20px">
 
-    <button onclick="addFunc()"
+    <button id="modAddFuncBtn" onclick="salvarFunc()"
       style="width:100%;padding:16px;background:#2563eb;color:#fff;border:none;border-radius:14px;font-weight:800;font-size:1rem;cursor:pointer;box-shadow:0 4px 12px rgba(37,99,235,.3)">
       ✅ CADASTRAR
+    </button>
+  </div>
+</div>
+
+<!-- MODAL RECEBER ACERTO (gerente) — seleção de itens -->
+<div id="modReceberAcerto" class="overlay">
+  <div class="mbox">
+    <div class="modal-handle"></div>
+    <button onclick="fecharMod('modReceberAcerto')" style="width:100%;padding:11px;background:#f1f5f9;border:none;border-radius:12px;font-weight:700;cursor:pointer;margin-bottom:14px;color:#475569;font-size:.85rem">✕ Fechar</button>
+    <h3 style="text-align:center;margin:0 0 2px;font-size:1.05rem;font-weight:800">💰 Registrar Acerto</h3>
+    <p id="modAcertoNome" style="text-align:center;font-size:.8rem;font-weight:700;color:#2563eb;margin:0 0 14px"></p>
+
+    <!-- Saldo atual -->
+    <div style="background:#fef2f2;border:1.5px solid #fecaca;border-radius:12px;padding:10px;margin-bottom:14px;text-align:center">
+      <div style="font-size:.6rem;color:#991b1b;text-transform:uppercase;font-weight:700;margin-bottom:2px">Saldo devedor atual</div>
+      <div id="modAcertoSaldo" style="font-size:1.4rem;font-weight:800;color:#dc2626">R$ 0,00</div>
+    </div>
+
+    <!-- Lista de itens pendentes -->
+    <div style="font-size:.65rem;font-weight:800;color:#475569;text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">📦 O que está sendo pago?</div>
+    <div id="boxItensAcerto" style="margin-bottom:12px;max-height:40vh;overflow-y:auto"></div>
+
+    <!-- Resumo do selecionado -->
+    <div id="boxResumoAcerto" style="display:none;background:#f0fdf4;border:1.5px solid #10b981;border-radius:12px;padding:12px;margin-bottom:12px">
+      <div style="font-size:.62rem;color:#166534;text-transform:uppercase;font-weight:700;margin-bottom:4px">Total selecionado</div>
+      <div id="totalAcertoSelecionado" style="font-size:1.3rem;font-weight:800;color:#16a34a">R$ 0,00</div>
+      <div id="resumoItensAcertoTexto" style="font-size:.7rem;color:#475569;margin-top:4px;line-height:1.6"></div>
+    </div>
+
+    <!-- Valor -->
+    <label>💰 Valor recebido (R$)</label>
+    <input id="vAcertoValor" type="number" placeholder="0,00" inputmode="decimal"
+      oninput="_sincronizarValorManualAcerto()"
+      style="font-size:1.2rem;font-weight:700;text-align:center;margin-bottom:18px;border:2px solid #10b981;border-radius:12px;padding:14px">
+
+    <button onclick="_confirmarReceberAcerto()"
+      style="width:100%;padding:16px;background:#16a34a;color:#fff;border:none;border-radius:14px;font-weight:800;font-size:1rem;cursor:pointer;box-shadow:0 4px 12px rgba(22,163,74,.3)">
+      ✅ GRAVAR ACERTO
     </button>
   </div>
 </div>
@@ -759,8 +797,7 @@ tr:last-child td{border-bottom:none}
     </div>
     <div class="card" style="border-left:4px solid #10b981;margin-bottom:0">
       <h4 style="margin:0 0 10px">💰 Receber Acerto</h4>
-      <input id="vPix" type="number" placeholder="R$ Valor">
-      <button class="ba" style="background:var(--s)" onclick="receberPix()">GRAVAR ACERTO</button>
+      <button class="ba" style="background:var(--s)" onclick="abrirReceberPix()">GRAVAR ACERTO</button>
     </div>
   </div>
 
@@ -946,8 +983,8 @@ tr:last-child td{border-bottom:none}
       </div>
       <div style="font-size:.78rem;color:#475569;line-height:1.7;padding-left:34px">
         Ainda na aba <b>📦 ENTREGA</b><br>
-        No bloco verde, selecione o funcionário, digite o valor recebido<br>
-        Toque em <b>GRAVAR ACERTO</b><br>
+        No bloco verde, selecione o funcionário, toque em <b>GRAVAR ACERTO</b><br>
+        Selecione quais itens estão sendo pagos e confirme o valor<br>
         O valor entra no <b>Caixa</b> automaticamente.
       </div>
     </div>
@@ -1504,6 +1541,7 @@ function confirmarAjusteCard(){
     D.recebido = novo;
     D.caixaManualOverride = novo;
     D.saidasCaixa = 0; // override já bake-in o saldo real; zera acumulador de saídas
+    D.caixaExtra = 0;  // idem — valor extra de entradas removidas já está no override
     let maxId=0;
     D.clientes.forEach(c=>{ (c.historico||[]).forEach(h=>{ if((h.id||0)>maxId) maxId=h.id||0; }); });
     D.caixaManualOverrideTs = maxId;
@@ -2260,11 +2298,11 @@ function entrarNoApp(){
           const overrideTs = D.caixaManualOverrideTs || 0;
           let entradasNovas = 0;
           D.clientes.forEach(c=>{ (c.historico||[]).forEach(h=>{ if(h.tipo==='entrada' && (h.id||0)>overrideTs) entradasNovas += h.valor||0; }); });
-          D.recebido = D.caixaManualOverride + entradasNovas - (D.saidasCaixa||0);
+          D.recebido = D.caixaManualOverride + entradasNovas + (D.caixaExtra||0) - (D.saidasCaixa||0);
         } else {
           let totalRecebido = 0;
           D.clientes.forEach(c=>{ (c.historico||[]).forEach(h=>{ if(h.tipo==='entrada') totalRecebido += h.valor||0; }); });
-          D.recebido = totalRecebido - (D.saidasCaixa||0);
+          D.recebido = totalRecebido + (D.caixaExtra||0) - (D.saidasCaixa||0);
         }
         localStorage.setItem(keyDoUsuario(_usuario), JSON.stringify(D));
         render();
@@ -2552,13 +2590,13 @@ function save(){
               if(h.tipo==='entrada' && (h.id||0) > overrideTs) entradasNovas += h.valor||0;
             });
           });
-          D.recebido = D.caixaManualOverride + entradasNovas - (D.saidasCaixa||0);
+          D.recebido = D.caixaManualOverride + entradasNovas + (D.caixaExtra||0) - (D.saidasCaixa||0);
         } else {
           let totalRecebido = 0;
           D.clientes.forEach(c=>{
             (c.historico||[]).forEach(h=>{ if(h.tipo==='entrada') totalRecebido += h.valor||0; });
           });
-          D.recebido = totalRecebido - (D.saidasCaixa||0);
+          D.recebido = totalRecebido + (D.caixaExtra||0) - (D.saidasCaixa||0);
         }
         localStorage.setItem(keyDoUsuario(_usuario),JSON.stringify(D));
         render();
@@ -2810,6 +2848,7 @@ function _renderFuncionarios(){
         </div>
         <div style="display:flex;gap:6px;flex-shrink:0">
           <button class="bc" onclick="abrirRelatorio(${i})" title="Relatório">📊</button>
+          <button style="background:#f0fdf4;color:#15803d;border:none;padding:8px;border-radius:8px;cursor:pointer;font-weight:700;font-size:.75rem" onclick="abrirModalEditFunc(${i})" title="Editar dados">📝</button>
           <button style="background:#dbeafe;color:#1d4ed8;border:none;padding:8px;border-radius:8px;cursor:pointer;font-weight:700;font-size:.75rem" onclick="editarSaldoFunc(${i})" title="Editar saldo">✏️</button>
           <button style="background:#0ea5e9;color:#fff;border:none;padding:8px;border-radius:8px;cursor:pointer;font-weight:700;font-size:.75rem" onclick="gerarLinkFunc(${i})" title="Gerar link">🔗</button>
           <button class="bd" onclick="delFunc(${i})" title="Excluir">🗑️</button>
@@ -3409,22 +3448,49 @@ function addProduto(){
     alert(`✅ Nota criada: ${n} x${q} = ${fmt(total)}`);
   }
 }
+let _editFuncIdx = null;
+
 function abrirModalAddFunc(){
+  _editFuncIdx = null;
   document.getElementById('cNome').value = '';
   document.getElementById('cWpp').value  = '';
+  document.getElementById('modAddFuncTitulo').innerText = '👤 Novo Funcionário';
+  document.getElementById('modAddFuncBtn').innerText    = '✅ CADASTRAR';
   document.getElementById('modAddFunc').classList.add('on');
   setTimeout(()=> document.getElementById('cNome').focus(), 300);
 }
 
-function addFunc(){
+function abrirModalEditFunc(i){
+  const c = D.clientes[i]; if(!c) return;
+  _editFuncIdx = i;
+  document.getElementById('cNome').value = c.nome;
+  document.getElementById('cWpp').value  = c.wpp || '';
+  document.getElementById('modAddFuncTitulo').innerText = '✏️ Editar Funcionário';
+  document.getElementById('modAddFuncBtn').innerText    = '✅ SALVAR';
+  document.getElementById('modAddFunc').classList.add('on');
+  setTimeout(()=> document.getElementById('cNome').focus(), 300);
+}
+
+function salvarFunc(){
   const n = document.getElementById('cNome').value.trim();
   const w = document.getElementById('cWpp').value.trim();
   if(!n) return alert('Digite o nome do funcionário.');
-  if(D.clientes.find(c => c.nome.toLowerCase() === n.toLowerCase()))
-    return alert('Já existe um funcionário com este nome.');
-  D.clientes.push({ nome:n, wpp:w, saldo:0, historico:[] });
-  document.getElementById('cNome').value = '';
-  document.getElementById('cWpp').value  = '';
+
+  if(_editFuncIdx !== null){
+    const c = D.clientes[_editFuncIdx];
+    const nomeAlterado = n.toLowerCase() !== c.nome.toLowerCase();
+    if(nomeAlterado && D.clientes.find((x,i)=> i!==_editFuncIdx && x.nome.toLowerCase()===n.toLowerCase()))
+      return alert('Já existe um funcionário com este nome.');
+    if(nomeAlterado && !confirm('⚠️ Alterar o nome de "'+c.nome+'" para "'+n+'"?\n\nLinks gerados antes desta alteração deixarão de funcionar — gere um novo link após salvar.'))
+      return;
+    c.nome = n;
+    c.wpp  = w;
+  } else {
+    if(D.clientes.find(c => c.nome.toLowerCase() === n.toLowerCase()))
+      return alert('Já existe um funcionário com este nome.');
+    D.clientes.push({ nome:n, wpp:w, saldo:0, historico:[] });
+  }
+
   fecharMod('modAddFunc');
   save();
   _renderFuncionarios();
@@ -3446,18 +3512,149 @@ function darCarga(){
   document.getElementById('selCli').value = funcSelecionado;
   alert(`✅ Carga: ${D.estoque[pi].nome} x${qtd} = ${fmt(total)}`);
 }
-function receberPix(){
-  const nomeCli=document.getElementById('selCli').value,valor=_parseValor(document.getElementById('vPix').value);
-  if(!nomeCli||!(valor>0)) return alert('Preencha os campos');
-  const ci=D.clientes.findIndex(c=>c.nome===nomeCli); if(ci<0) return alert('Funcionário não encontrado');
-  D.clientes[ci].saldo-=valor; D.clientes[ci].historico.push({id:Date.now(),tipo:'entrada',desc:'Acerto recebido',valor,data:hoje()});
-  D.recebido+=valor;
-  const funcSelecionadoPix = nomeCli;
-  document.getElementById('vPix').value='';
+let _acertoFuncIdx = null;
+let _itensSelecionadosAcerto = {};
+
+function abrirReceberPix(){
+  const nomeCli = document.getElementById('selCli').value;
+  if(!nomeCli) return alert('Selecione um funcionário.');
+  const ci = D.clientes.findIndex(c => c.nome === nomeCli);
+  if(ci < 0) return alert('Funcionário não encontrado.');
+  _acertoFuncIdx = ci;
+  _itensSelecionadosAcerto = {};
+  const c = D.clientes[ci];
+  document.getElementById('modAcertoNome').innerText = c.nome;
+  document.getElementById('modAcertoSaldo').innerText = fmt(c.saldo);
+  document.getElementById('vAcertoValor').value = '';
+  _renderItensAcerto();
+  document.getElementById('modReceberAcerto').classList.add('on');
+}
+
+function _renderItensAcerto(){
+  if(_acertoFuncIdx === null) return;
+  const c = D.clientes[_acertoFuncIdx];
+  const hist = c.historico || [];
+  const saidas = hist.filter(h => h.tipo === 'saida');
+
+  // quanto já foi pago por item via itensPix em entradas anteriores
+  const pagoPorItem = {};
+  hist.filter(h => h.tipo === 'entrada' && h.itensPix).forEach(e => {
+    (e.itensPix||[]).forEach(ip => { pagoPorItem[ip.saidaId] = (pagoPorItem[ip.saidaId]||0) + (ip.valorPago||0); });
+  });
+
+  const pendentes = saidas.filter(s => (s.valor||0) - (pagoPorItem[String(s.id)]||0) > 0.001);
+  const box = document.getElementById('boxItensAcerto');
+  if(!box) return;
+
+  if(!pendentes.length){
+    box.innerHTML = `<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px;text-align:center;font-size:.78rem;color:#94a3b8">✅ Sem itens pendentes — digite o valor livremente</div>`;
+    _atualizarResumoAcerto();
+    return;
+  }
+
+  box.innerHTML = pendentes.map(s => {
+    const pago = pagoPorItem[String(s.id)]||0;
+    const restante = Math.max(0, (s.valor||0) - pago);
+    const sel = _itensSelecionadosAcerto[String(s.id)];
+    const checked = sel !== undefined;
+    return `<div id="itemAcerto_${s.id}" style="background:${checked?'#f0fdf4':'#f8fafc'};border:${checked?'1.5px solid #10b981':'1.5px solid #e2e8f0'};border-radius:12px;padding:12px;margin-bottom:8px;transition:all .2s">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:${checked?'10px':'0'}">
+        <input type="checkbox" id="chkA_${s.id}" onchange="_toggleItemAcerto('${s.id}',${restante})" ${checked?'checked':''} style="width:20px;height:20px;accent-color:#10b981;cursor:pointer;flex-shrink:0">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:.82rem;font-weight:700;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${s.desc||'Item'}</div>
+          <div style="font-size:.65rem;color:#64748b">${s.data||''} · Falta: <b style="color:#dc2626">${fmt(restante)}</b>${pago>0?' · Pago: '+fmt(pago):''}</div>
+        </div>
+      </div>
+      ${checked?`<div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:.7rem;color:#475569;white-space:nowrap">Quanto está pagando?</span>
+        <input type="number" id="valA_${s.id}" value="${(sel||restante).toFixed(2)}" max="${restante}" min="0.01" step="0.01" inputmode="decimal"
+          oninput="_atualizarValorItemAcerto('${s.id}',${restante})"
+          style="flex:1;padding:8px 10px;border:1.5px solid #10b981;border-radius:8px;font-size:.9rem;font-weight:700;text-align:center;background:#fff;min-width:0">
+        <button onclick="_pagarTudoItemAcerto('${s.id}',${restante})" style="background:#16a34a;color:#fff;border:none;padding:8px 10px;border-radius:8px;font-size:.65rem;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0">Tudo</button>
+      </div>`:''}
+    </div>`;
+  }).join('');
+
+  _atualizarResumoAcerto();
+}
+
+function _toggleItemAcerto(saidaId, restante){
+  const chk = document.getElementById('chkA_'+saidaId);
+  if(chk && chk.checked) _itensSelecionadosAcerto[saidaId] = restante;
+  else delete _itensSelecionadosAcerto[saidaId];
+  _renderItensAcerto();
+}
+
+function _atualizarValorItemAcerto(saidaId, restante){
+  const input = document.getElementById('valA_'+saidaId);
+  if(!input) return;
+  let v = parseFloat(input.value)||0;
+  if(v > restante){ v = restante; input.value = restante.toFixed(2); }
+  if(v < 0) v = 0;
+  _itensSelecionadosAcerto[saidaId] = v;
+  _atualizarResumoAcerto();
+}
+
+function _pagarTudoItemAcerto(saidaId, restante){
+  _itensSelecionadosAcerto[saidaId] = restante;
+  const input = document.getElementById('valA_'+saidaId);
+  if(input) input.value = restante.toFixed(2);
+  _atualizarResumoAcerto();
+}
+
+function _atualizarResumoAcerto(){
+  if(_acertoFuncIdx === null) return;
+  const total = Object.values(_itensSelecionadosAcerto).reduce((s,v)=>s+(+v||0), 0);
+  const box   = document.getElementById('boxResumoAcerto');
+  const elTot = document.getElementById('totalAcertoSelecionado');
+  const elTxt = document.getElementById('resumoItensAcertoTexto');
+  const elVal = document.getElementById('vAcertoValor');
+  const saidas = (D.clientes[_acertoFuncIdx].historico||[]).filter(h=>h.tipo==='saida');
+  const itens  = Object.entries(_itensSelecionadosAcerto);
+  if(itens.length > 0 && total > 0){
+    if(box) box.style.display = 'block';
+    if(elTot) elTot.innerText = fmt(total);
+    if(elTxt) elTxt.innerHTML = itens.map(([id,v])=>{
+      const s = saidas.find(x=>String(x.id)===String(id));
+      return `• ${s?s.desc:'Item'}: <b>${fmt(+v)}</b>`;
+    }).join('<br>');
+    if(elVal && (parseFloat(elVal.value)||0) === 0) elVal.value = total.toFixed(2);
+  } else {
+    if(box) box.style.display = 'none';
+    if(itens.length===0 && elVal) elVal.value = '';
+  }
+}
+
+function _sincronizarValorManualAcerto(){
+  const elVal  = document.getElementById('vAcertoValor');
+  const totalSel = Object.values(_itensSelecionadosAcerto).reduce((s,v)=>s+(+v||0), 0);
+  const digitado = parseFloat(elVal&&elVal.value)||0;
+  if(totalSel > 0 && Math.abs(digitado - totalSel) > 0.005){
+    _itensSelecionadosAcerto = {};
+    _renderItensAcerto();
+  }
+}
+
+function _confirmarReceberAcerto(){
+  if(_acertoFuncIdx === null) return;
+  const valor = _parseValor(document.getElementById('vAcertoValor').value);
+  if(!(valor > 0)) return alert('Digite o valor do acerto.');
+  const c = D.clientes[_acertoFuncIdx];
+  const itensSel = Object.entries(_itensSelecionadosAcerto);
+  const itensPix = itensSel.length > 0
+    ? itensSel.map(([id,v])=>({ saidaId: id, valorPago: +(+v).toFixed(2) }))
+    : null;
+  const desc = itensPix
+    ? 'Acerto — ' + itensSel.map(([id,v])=>{ const s=(c.historico||[]).find(h=>String(h.id)===String(id)); return (s?s.desc:'Item')+': '+fmt(+v); }).join(', ')
+    : 'Acerto recebido';
+  c.historico.push({ id:Date.now(), tipo:'entrada', desc, valor, data:hoje(), itensPix });
+  c.saldo = Math.max(0, c.saldo - valor);
+  D.recebido += valor;
+  fecharMod('modReceberAcerto');
   save();
   render();
-  document.getElementById('selCli').value = funcSelecionadoPix;
-  alert(`✅ Acerto de ${fmt(valor)} registrado`);
+  document.getElementById('selCli').value = c.nome;
+  alert(`✅ Acerto de ${fmt(valor)} registrado para ${c.nome}`);
 }
 
 let _relIdx = null;
@@ -3810,12 +4007,17 @@ function delEst(id){
 function delFunc(i){
   const c = D.clientes[i];
   if(!c) return;
+  // Calcula total de PIX já recebidos deste funcionário (estão no caixa via fórmula)
+  const totalPixFunc = (c.historico||[]).reduce((s,h)=>h.tipo==='entrada'?s+(h.valor||0):s, 0);
   if(c.saldo > 0){
     if(!confirm('⚠️ ATENÇÃO!\n\n' + c.nome + ' ainda possui saldo devedor de ' + fmt(c.saldo) + '.\n\nDeseja apagar mesmo assim?')) return;
     const devolver = confirm('💰 Devolver ' + fmt(c.saldo) + ' ao Caixa?\n\n✅ OK = Devolve ao caixa\n❌ Cancelar = Não devolve');
-    if(devolver) D.recebido += c.saldo;
+    // Preserva no caixa os PIX já recebidos + (opcionalmente) o saldo devedor
+    D.caixaExtra = (D.caixaExtra||0) + totalPixFunc + (devolver ? c.saldo : 0);
   } else {
     if(!confirm('Apagar funcionário ' + c.nome + '?')) return;
+    // Mesmo sem saldo devedor, preserva os PIX recebidos que serão removidos com o histórico
+    D.caixaExtra = (D.caixaExtra||0) + totalPixFunc;
   }
   D.clientes.splice(i, 1);
   save();
@@ -3877,9 +4079,7 @@ async function _salvarDepoisDelSaida(ci, valor){
 }
 
 async function delSaida(ci, saidaId, valor){
-  if(!confirm('Apagar entrega de '+fmt(valor)+'?')) return;
   const c = D.clientes[ci]; if(!c) return;
-
   let idx = c.historico.findIndex(h => h.tipo==='saida' && String(h.id)===String(saidaId));
   if(idx < 0){
     idx = c.historico.findIndex(h => h.tipo==='saida' && h.valor===valor);
@@ -3887,42 +4087,14 @@ async function delSaida(ci, saidaId, valor){
   }
   const h = c.historico[idx];
   const temEstoque = !!(h.prodId && D.estoque.findIndex(p=>p.id===h.prodId) >= 0 && h.qtd);
-  const nomeProd = h.desc || 'produto';
-  const qtd = h.qtd || 0;
-
-  _abrirModalOpcao({
-    icone: '📦',
-    titulo: 'Como apagar esta entrega?',
-    desc: fmt(valor) + ' — ' + nomeProd + ' · ' + (h.data||''),
-    info: temEstoque ? (qtd + ' un. de "' + nomeProd + '"') : undefined,
-    infoLabel: temEstoque ? 'Quantidade entregue' : undefined,
-    infoCor: '#f59e0b',
-    opcoes: [
-      {
-        label: '↩️ Devolver ao estoque',
-        desc: 'Remove do histórico e devolve ' + (temEstoque ? qtd+' un.' : 'a quantidade') + ' ao estoque',
-        cor: '#d97706', bg: '#fffbeb', border: '#fde68a',
-        acao: async () => {
-          c.historico.splice(idx, 1);
-          if(temEstoque){
-            const pi = D.estoque.findIndex(p=>p.id===h.prodId);
-            if(pi>=0) D.estoque[pi].qtd += h.qtd;
-          }
-          await _salvarDepoisDelSaida(ci, valor);
-        }
-      },
-      {
-        label: '🗑️ Limpar só do histórico',
-        desc: 'Remove o registro mas o estoque fica como está',
-        cor: '#dc2626', bg: '#fef2f2', border: '#fecaca',
-        acao: async () => {
-          c.historico.splice(idx, 1);
-          // estoque não é alterado
-          await _salvarDepoisDelSaida(ci, valor);
-        }
-      }
-    ]
-  });
+  const detalhe = (h.desc||'entrega') + (temEstoque ? ' · ' + h.qtd + ' un. voltam ao estoque' : '');
+  if(!confirm('Apagar ' + fmt(valor) + ' — ' + detalhe + '?')) return;
+  c.historico.splice(idx, 1);
+  if(temEstoque){
+    const pi = D.estoque.findIndex(p=>p.id===h.prodId);
+    if(pi>=0) D.estoque[pi].qtd += h.qtd;
+  }
+  await _salvarDepoisDelSaida(ci, valor);
 }
 
 async function delPix(ci, pixId, valor){
@@ -3941,28 +4113,29 @@ async function delPix(ci, pixId, valor){
 
   _abrirModalOpcao({
     icone: '💸',
-    titulo: 'Como apagar este PIX?',
+    titulo: 'Apagar este PIX?',
     desc: fmt(valor) + (h.data ? ' — ' + h.data : '') + (h.nomeRemetente ? ' · ' + h.nomeRemetente : ''),
     info: fmt(D.recebido),
     infoLabel: 'Caixa atual',
     infoCor: '#16a34a',
     opcoes: [
       {
-        label: '↩️ Devolver ao caixa',
-        desc: 'Remove o pagamento e devolve ' + fmt(valor) + ' ao caixa',
-        cor: '#16a34a', bg: '#f0fdf4', border: '#86efac',
+        label: '💸 Apagar e retirar do caixa',
+        desc: 'Remove o pagamento — o valor sai do caixa',
+        cor: '#dc2626', bg: '#fef2f2', border: '#fecaca',
         acao: async () => {
           c.historico.splice(idx, 1);
-          D.recebido += valor;
+          // sem caixaExtra — a fórmula recalcula sem esta entrada e o caixa diminui
           await _salvarDepoisDelPix(ci, valor, h);
         }
       },
       {
-        label: '🗑️ Limpar só do histórico',
-        desc: 'Remove o registro mas o caixa não é alterado',
-        cor: '#dc2626', bg: '#fef2f2', border: '#fecaca',
+        label: '🗑️ Apagar só o histórico',
+        desc: 'Remove o registro mas o dinheiro permanece no caixa',
+        cor: '#d97706', bg: '#fffbeb', border: '#fde68a',
         acao: async () => {
           c.historico.splice(idx, 1);
+          D.caixaExtra = (D.caixaExtra||0) + valor; // compensa a remoção — caixa não muda
           await _salvarDepoisDelPix(ci, valor, h);
         }
       }
@@ -4028,10 +4201,10 @@ function resetSeletivo(tipo){
   const msgs={historico:'Limpar todo o histórico de entregas?\n\nFuncionários serão mantidos mas saldos zerados.',caixa:'Zerar o caixa?',estoque:'Limpar todo o estoque?',clientes:'Apagar TODOS os funcionários?\n\nIrreversível!',fornecedores:'Apagar TODOS os fornecedores e notas?\n\nIrreversível!',tudo:'⚠️ APAGAR TUDO?\n\nEstoque, funcionários, fornecedores e caixa.\n\nIrreversível!'};
   if(!confirm(msgs[tipo])) return;
   if(prompt('Digite  CONFIRMAR  para prosseguir:')!=='CONFIRMAR') return alert('❌ Cancelado.');
-  if(tipo==='historico'){ D.clientes.forEach(c=>{c.historico=[];c.saldo=0;}); D.recebido=0; D.caixaManualOverride=null; D.caixaManualOverrideTs=null; }
-  else if(tipo==='caixa'){ D.recebido=0; D.caixaManualOverride=null; D.caixaManualOverrideTs=null; }
+  if(tipo==='historico'){ D.clientes.forEach(c=>{c.historico=[];c.saldo=0;}); D.recebido=0; D.caixaManualOverride=null; D.caixaManualOverrideTs=null; D.caixaExtra=0; }
+  else if(tipo==='caixa'){ D.recebido=0; D.caixaManualOverride=null; D.caixaManualOverrideTs=null; D.caixaExtra=0; }
   else if(tipo==='estoque'){ D.estoque=[]; D.custoOverride=null; }
-  else if(tipo==='clientes'){ D.clientes=[]; D.recebido=0; D.receberOverride=null; D.caixaManualOverride=null; D.caixaManualOverrideTs=null; _relIdx=null; }
+  else if(tipo==='clientes'){ D.clientes=[]; D.recebido=0; D.receberOverride=null; D.caixaManualOverride=null; D.caixaManualOverrideTs=null; D.caixaExtra=0; _relIdx=null; }
   else if(tipo==='fornecedores'){ D.fornecedores=[]; D.fornecOverride=null; fornAberto={}; _pagFi=null;_pagCi=null;_fornRapidoIdx=null; }
   else if(tipo==='tudo'){ D={estoque:[],clientes:[],fornecedores:[],recebido:0}; fornAberto={}; _relIdx=null; _pagFi=null;_pagCi=null;_fornRapidoIdx=null; }
   fecharMod('modReset'); save(); alert('✅ Concluído!');

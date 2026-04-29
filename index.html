@@ -4097,14 +4097,44 @@ async function delSaida(ci, saidaId, valor){
   }
   const h = c.historico[idx];
   const temEstoque = !!(h.prodId && D.estoque.findIndex(p=>p.id===h.prodId) >= 0 && h.qtd);
-  const detalhe = (h.desc||'entrega') + (temEstoque ? ' · ' + h.qtd + ' un. voltam ao estoque' : '');
-  if(!confirm('Apagar ' + fmt(valor) + ' — ' + detalhe + '?')) return;
-  c.historico.splice(idx, 1);
+
   if(temEstoque){
-    const pi = D.estoque.findIndex(p=>p.id===h.prodId);
-    if(pi>=0) D.estoque[pi].qtd += h.qtd;
+    const nomeProd = (D.estoque.find(p=>p.id===h.prodId)||{}).nome || 'produto';
+    _abrirModalOpcao({
+      icone: '📦',
+      titulo: 'Apagar entrega?',
+      desc: (h.desc||'entrega') + ' — ' + fmt(valor),
+      info: h.qtd + ' un. de "' + nomeProd + '"',
+      infoLabel: 'Produto',
+      infoCor: '#f59e0b',
+      opcoes: [
+        {
+          label: '🗑️ Apagar só o registro',
+          desc: 'Remove o lançamento — estoque NÃO é alterado',
+          cor: '#dc2626', bg: '#fef2f2', border: '#fecaca',
+          acao: async () => {
+            c.historico.splice(idx, 1);
+            await _salvarDepoisDelSaida(ci, valor);
+          }
+        },
+        {
+          label: '🔄 Apagar e devolver ao estoque',
+          desc: 'Remove o registro — ' + h.qtd + ' un. voltam ao estoque',
+          cor: '#2563eb', bg: '#eff6ff', border: '#bfdbfe',
+          acao: async () => {
+            c.historico.splice(idx, 1);
+            const pi = D.estoque.findIndex(p=>p.id===h.prodId);
+            if(pi>=0) D.estoque[pi].qtd += h.qtd;
+            await _salvarDepoisDelSaida(ci, valor);
+          }
+        }
+      ]
+    });
+  } else {
+    if(!confirm('Apagar ' + fmt(valor) + ' — ' + (h.desc||'entrega') + '?')) return;
+    c.historico.splice(idx, 1);
+    await _salvarDepoisDelSaida(ci, valor);
   }
-  await _salvarDepoisDelSaida(ci, valor);
 }
 
 async function delPix(ci, pixId, valor){

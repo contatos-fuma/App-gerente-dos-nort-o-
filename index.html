@@ -871,21 +871,12 @@ tr:last-child td{border-bottom:none}
 
   <!-- ── ABA 4: RELATÓRIOS ── -->
   <div id="t4" class="tab">
-
-    <div class="section-title">👤 Relatório por Funcionário</div>
-    <select id="relFuncSelect" onchange="_renderRelFunc()" style="margin-bottom:10px">
-      <option value="">— Selecione um funcionário —</option>
-    </select>
-    <div id="relFuncCorpo"></div>
-
-    <div class="section-title" style="margin-top:18px">🔴 Quem Deve</div>
-    <div id="relDevedores"></div>
-
+    <div id="relGeral"></div>
+    <div class="section-title" style="margin-top:4px">👥 Funcionários — Situação Detalhada</div>
+    <button onclick="_enviarRelGeralWpp()" style="width:100%;padding:13px;background:#25d366;color:#fff;border:none;border-radius:12px;font-weight:800;font-size:.88rem;cursor:pointer;margin-bottom:14px">📲 Enviar relatório geral pelo WhatsApp</button>
+    <div id="relTodosFuncs"></div>
     <div class="section-title" style="margin-top:18px">📦 Paiol (Estoque)</div>
     <div id="relPaiol"></div>
-
-    <div class="section-title" style="margin-top:18px">📊 Relatório Geral</div>
-    <div id="relGeral"></div>
   </div>
 
 </div><!-- fim appBox-inner -->
@@ -2900,18 +2891,77 @@ async function resetarSenhaFunc(i){
 }
 
 function _renderRelatorios(){
-  // Popula o select de funcionários
-  const sel = document.getElementById('relFuncSelect');
-  if(sel){
-    const atual = sel.value;
-    sel.innerHTML = '<option value="">— Selecione um funcionário —</option>'
-      + (D.clientes||[]).map((c,i)=>`<option value="${i}">${c.nome}${c.saldo>0?' (deve '+fmt(c.saldo)+')':''}</option>`).join('');
-    if(atual !== '') sel.value = atual;
-  }
-  _renderRelFunc();
-  _renderRelDevedores();
-  _renderRelPaiol();
   _renderRelGeral();
+  _renderTodosFuncs();
+  _renderRelPaiol();
+}
+
+function _renderTodosFuncs(){
+  const el = document.getElementById('relTodosFuncs');
+  if(!el) return;
+  const clientes = D.clientes||[];
+  if(!clientes.length){
+    el.innerHTML='<div style="background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:12px;padding:14px;text-align:center;font-size:.82rem;color:#94a3b8">Nenhum funcionário cadastrado</div>';
+    return;
+  }
+  el.innerHTML = clientes.map((c,ci)=>{
+    const hist = c.historico||[];
+    const saidas   = hist.filter(h=>h.tipo==='saida');
+    const entradas = hist.filter(h=>h.tipo==='entrada');
+    const pagoPorItem={};
+    entradas.filter(e=>e.itensPix).forEach(e=>{
+      (e.itensPix||[]).forEach(ip=>{ pagoPorItem[ip.saidaId]=(pagoPorItem[ip.saidaId]||0)+(ip.valorPago||0); });
+    });
+    const totalSaidas   = saidas.reduce((s,h)=>s+(h.valor||0),0);
+    const totalEntradas = entradas.reduce((s,h)=>s+(h.valor||0),0);
+    const corCard = c.saldo>0?'#fecaca':'#bbf7d0';
+    const corSaldo = c.saldo>0?'#dc2626':'#16a34a';
+
+    let itensHtml = '';
+    if(saidas.length){
+      itensHtml = saidas.map(h=>{
+        const pago     = pagoPorItem[String(h.id)]||0;
+        const restante = Math.max(0,(h.valor||0)-pago);
+        const quitado  = restante<0.01;
+        const pct      = Math.min(100,h.valor>0?Math.round(pago/h.valor*100):100);
+        return `<div style="padding:6px 0;border-bottom:1px solid #f1f5f9">
+          <div style="display:flex;justify-content:space-between;font-size:.78rem;font-weight:700;color:#1e293b">
+            <span>${h.desc||'Entrega'} <small style="font-weight:400;color:#94a3b8">${h.data||''}</small></span>
+            <span style="color:${quitado?'#16a34a':'#dc2626'};flex-shrink:0;margin-left:8px">${quitado?'✅':fmt(restante)+' deve'}</span>
+          </div>
+          <div style="background:#e2e8f0;border-radius:99px;height:5px;margin:4px 0;overflow:hidden">
+            <div style="background:${quitado?'#16a34a':'#f59e0b'};width:${pct}%;height:100%;border-radius:99px"></div>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:.65rem;color:#64748b">
+            <span>Cobrado: <b>${fmt(h.valor)}</b></span>
+            <span>Pago: <b style="color:#16a34a">${fmt(pago)}</b></span>
+          </div>
+        </div>`;
+      }).join('');
+    } else {
+      itensHtml = '<div style="font-size:.75rem;color:#94a3b8;padding:6px 0">Sem entregas registradas</div>';
+    }
+
+    return `<div style="background:#fff;border:2px solid ${corCard};border-radius:14px;padding:14px;margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <div>
+          <div style="font-size:.95rem;font-weight:800;color:#1e293b">${c.nome}</div>
+          ${c.wpp?`<div style="font-size:.65rem;color:#94a3b8">📱 ${c.wpp}</div>`:''}
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:1rem;font-weight:800;color:${corSaldo}">${c.saldo>0?fmt(c.saldo):'✅ Zerado'}</div>
+          <div style="font-size:.62rem;color:#94a3b8">${c.saldo>0?'deve':'quitado'}</div>
+        </div>
+      </div>
+      <div style="font-size:.68rem;font-weight:800;color:#475569;text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">📦 O que pegou — situação por item</div>
+      ${itensHtml}
+      <div style="display:flex;justify-content:space-between;font-size:.75rem;padding:8px 0 10px;border-top:1px solid #e2e8f0;margin-top:6px">
+        <span>Total entregue: <b style="color:#dc2626">${fmt(totalSaidas)}</b></span>
+        <span>Total pago: <b style="color:#16a34a">${fmt(totalEntradas)}</b></span>
+      </div>
+      <button onclick="_enviarRelFuncWpp(${ci})" style="width:100%;padding:10px;background:#25d366;color:#fff;border:none;border-radius:10px;font-weight:700;font-size:.8rem;cursor:pointer">📲 WhatsApp de ${c.nome}</button>
+    </div>`;
+  }).join('');
 }
 
 function _renderRelFunc(){
@@ -3096,6 +3146,39 @@ function _enviarRelFuncWpp(ci){
     ? `https://wa.me/55${num}?text=${encodeURIComponent(msg)}`
     : `https://wa.me/?text=${encodeURIComponent(msg)}`;
   window.open(url, '_blank');
+}
+
+function _enviarRelGeralWpp(){
+  const clientes = D.clientes||[];
+  if(!clientes.length) return alert('Nenhum funcionário cadastrado.');
+  const data = new Date().toLocaleDateString('pt-BR');
+  let msg = `📋 *RELATÓRIO GERAL — ${data}*\n`;
+  msg += `━━━━━━━━━━━━━━━\n\n`;
+  clientes.forEach(c=>{
+    const hist = c.historico||[];
+    const saidas   = hist.filter(h=>h.tipo==='saida');
+    const entradas = hist.filter(h=>h.tipo==='entrada');
+    const pagoPorItem={};
+    entradas.filter(e=>e.itensPix).forEach(e=>{
+      (e.itensPix||[]).forEach(ip=>{ pagoPorItem[ip.saidaId]=(pagoPorItem[ip.saidaId]||0)+(ip.valorPago||0); });
+    });
+    msg += `👤 *${c.nome.toUpperCase()}*\n`;
+    if(saidas.length){
+      saidas.forEach(h=>{
+        const pago     = pagoPorItem[String(h.id)]||0;
+        const restante = Math.max(0,(h.valor||0)-pago);
+        const status   = restante<0.01?'✅':'⚠️ deve '+fmt(restante);
+        msg += `  📦 ${h.desc||'Entrega'}: ${fmt(h.valor)} — ${status}\n`;
+      });
+    }
+    msg += c.saldo>0
+      ? `  ❗ *Saldo devedor: ${fmt(c.saldo)}*\n\n`
+      : `  ✅ Conta zerada\n\n`;
+  });
+  const totalGeral = clientes.reduce((s,c)=>s+(c.saldo||0),0);
+  msg += `━━━━━━━━━━━━━━━\n`;
+  msg += `💰 *TOTAL A RECEBER: ${fmt(totalGeral)}*`;
+  window.open('https://wa.me/?text='+encodeURIComponent(msg),'_blank');
 }
 
 function _renderRelDevedores(){

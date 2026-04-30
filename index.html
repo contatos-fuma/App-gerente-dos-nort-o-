@@ -102,7 +102,7 @@ tr:last-child td{border-bottom:none}
   background:linear-gradient(135deg,#0f172a 0%,#1a2744 100%);
   border-bottom:1px solid #334155;
   display:none; /* mostrado só quando appBox está visível */
-  grid-template-columns:repeat(4,1fr);
+  grid-template-columns:repeat(5,1fr);
   gap:0;
   z-index:999;
   box-shadow:0 4px 20px rgba(0,0,0,.4);
@@ -131,6 +131,7 @@ tr:last-child td{border-bottom:none}
 .nav-fixed button.on.tab-equipe::after{background:#25d366}
 .nav-fixed button.on.tab-entrega::after{background:#f59e0b}
 .nav-fixed button.on.tab-fornec::after{background:#f87171}
+.nav-fixed button.on.tab-relatorio::after{background:#a855f7}
 
 /* ── LOGIN ── */
 #telaLogin{display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px;background:linear-gradient(160deg,#0f172a 0%,#1e3a5f 100%)}
@@ -3040,7 +3041,60 @@ function _renderRelFunc(){
     </div>
   </div>`;
 
+  // ── BOTÃO WHATSAPP ──
+  html += `<button onclick="_enviarRelFuncWpp(${ci})"
+    style="width:100%;margin-top:12px;padding:14px;background:#25d366;color:#fff;border:none;border-radius:14px;font-weight:800;font-size:.95rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px">
+    📲 Enviar relatório pelo WhatsApp
+  </button>`;
+
   el.innerHTML = html;
+}
+
+function _enviarRelFuncWpp(ci){
+  const c = D.clientes[ci];
+  if(!c) return;
+  const hist = c.historico || [];
+  const saidas   = hist.filter(h=>h.tipo==='saida').sort((a,b)=>parseDt(a.data)-parseDt(b.data));
+  const entradas = hist.filter(h=>h.tipo==='entrada').sort((a,b)=>parseDt(a.data)-parseDt(b.data));
+  const pagoPorItem = {};
+  entradas.filter(e=>e.itensPix).forEach(e=>{
+    (e.itensPix||[]).forEach(ip=>{ pagoPorItem[ip.saidaId]=(pagoPorItem[ip.saidaId]||0)+(ip.valorPago||0); });
+  });
+  const totalSaidas   = saidas.reduce((s,h)=>s+(h.valor||0),0);
+  const totalEntradas = entradas.reduce((s,h)=>s+(h.valor||0),0);
+
+  let msg = `📋 *RELATÓRIO — ${c.nome.toUpperCase()}*\n`;
+  msg += `_${new Date().toLocaleDateString('pt-BR')}_\n\n`;
+
+  if(saidas.length){
+    msg += `📦 *O QUE PEGOU*\n`;
+    saidas.forEach(h=>{
+      const pago     = pagoPorItem[String(h.id)]||0;
+      const restante = Math.max(0,(h.valor||0)-pago);
+      const status   = restante<0.01 ? '✅' : `⚠️ falta ${fmt(restante)}`;
+      msg += `• ${h.desc||'Entrega'} (${h.data||''}): *${fmt(h.valor)}* — ${status}\n`;
+    });
+    msg += `*Total recebido: ${fmt(totalSaidas)}*\n\n`;
+  }
+
+  if(entradas.length){
+    msg += `💰 *O QUE PAGOU*\n`;
+    entradas.forEach(h=>{ msg += `• ${h.data||''}: *${fmt(h.valor)}*\n`; });
+    msg += `*Total pago: ${fmt(totalEntradas)}*\n\n`;
+  }
+
+  msg += `━━━━━━━━━━━━━━━\n`;
+  msg += `📦 Total entregue: *${fmt(totalSaidas)}*\n`;
+  msg += `💰 Total pago: *${fmt(totalEntradas)}*\n`;
+  msg += c.saldo>0
+    ? `❗ *SALDO DEVEDOR: ${fmt(c.saldo)}*`
+    : `✅ *CONTA ZERADA*`;
+
+  const num = (c.wpp||'').replace(/\D/g,'');
+  const url = num
+    ? `https://wa.me/55${num}?text=${encodeURIComponent(msg)}`
+    : `https://wa.me/?text=${encodeURIComponent(msg)}`;
+  window.open(url, '_blank');
 }
 
 function _renderRelDevedores(){

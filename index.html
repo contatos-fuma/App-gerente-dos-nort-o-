@@ -867,6 +867,19 @@ tr:last-child td{border-bottom:none}
     </div>
   </div>
   </div><!-- fim .content -->
+
+  <!-- ── ABA 4: RELATÓRIOS ── -->
+  <div id="t4" class="tab">
+    <div class="section-title">🔴 Quem Deve</div>
+    <div id="relDevedores"></div>
+
+    <div class="section-title" style="margin-top:18px">📦 Paiol (Estoque)</div>
+    <div id="relPaiol"></div>
+
+    <div class="section-title" style="margin-top:18px">📊 Relatório Geral</div>
+    <div id="relGeral"></div>
+  </div>
+
 </div><!-- fim appBox-inner -->
 
 <!-- BARRA DE NAVEGAÇÃO FIXA -->
@@ -886,6 +899,10 @@ tr:last-child td{border-bottom:none}
   <button class="tab-fornec" onclick="aba(3)">
     <span class="nav-icon">🚚</span>
     <span>Fornecedor</span>
+  </button>
+  <button class="tab-relatorio" onclick="aba(4)">
+    <span class="nav-icon">📋</span>
+    <span>Relatório</span>
   </button>
 </nav>
 </div><!-- fim appBox -->
@@ -2811,7 +2828,7 @@ function confirmarAdiantAba(origem){
 
 function toggleForn(fi){ fornAberto[fi]=!fornAberto[fi]; render(); }
 
-var _ordemVisual = [1, 2, 0, 3];
+var _ordemVisual = [1, 2, 0, 3, 4];
 var _posVisual   = 0; 
 var _abaAtual    = 1; 
 
@@ -2873,8 +2890,86 @@ async function resetarSenhaFunc(i){
   alert('✅ Senha de ' + c.nome + ' foi resetada.\nEle criará uma nova senha no próximo acesso.');
 }
 
+function _renderRelatorios(){
+  _renderRelDevedores();
+  _renderRelPaiol();
+  _renderRelGeral();
+}
+
+function _renderRelDevedores(){
+  const el = document.getElementById('relDevedores');
+  if(!el) return;
+  const devedores = (D.clientes||[]).filter(c=>c.saldo>0).sort((a,b)=>b.saldo-a.saldo);
+  if(!devedores.length){
+    el.innerHTML = '<div style="background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:12px;padding:14px;text-align:center;font-size:.82rem;color:#166534">✅ Nenhum funcionário com saldo devedor</div>';
+    return;
+  }
+  const totalDivida = devedores.reduce((s,c)=>s+c.saldo,0);
+  el.innerHTML = devedores.map(c=>`
+    <div style="display:flex;justify-content:space-between;align-items:center;background:#fff;border:1.5px solid #fecaca;border-radius:12px;padding:12px 14px;margin-bottom:8px">
+      <div>
+        <div style="font-size:.88rem;font-weight:700;color:#1e293b">${c.nome}</div>
+        ${c.wpp?`<div style="font-size:.65rem;color:#94a3b8">${c.wpp}</div>`:''}
+      </div>
+      <div style="font-size:1rem;font-weight:800;color:#dc2626">${fmt(c.saldo)}</div>
+    </div>`).join('')
+  + `<div style="background:#fef2f2;border:1.5px solid #fca5a5;border-radius:12px;padding:12px 14px;display:flex;justify-content:space-between;margin-top:4px">
+      <span style="font-size:.78rem;font-weight:800;color:#991b1b">TOTAL A RECEBER</span>
+      <span style="font-size:.95rem;font-weight:800;color:#dc2626">${fmt(totalDivida)}</span>
+    </div>`;
+}
+
+function _renderRelPaiol(){
+  const el = document.getElementById('relPaiol');
+  if(!el) return;
+  if(!(D.estoque||[]).length){
+    el.innerHTML = '<div style="background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:12px;padding:14px;text-align:center;font-size:.82rem;color:#94a3b8">Paiol vazio</div>';
+    return;
+  }
+  const totalValor = D.estoque.reduce((s,p)=>s+(p.qtd||0)*(p.custo||0),0);
+  const totalItens = D.estoque.reduce((s,p)=>s+(p.qtd||0),0);
+  el.innerHTML = D.estoque.map(p=>`
+    <div style="display:flex;justify-content:space-between;align-items:center;background:#fff;border:1.5px solid #e2e8f0;border-radius:12px;padding:12px 14px;margin-bottom:8px">
+      <div>
+        <div style="font-size:.88rem;font-weight:700;color:#1e293b">${p.nome}</div>
+        ${p.forn?`<div style="font-size:.65rem;color:#94a3b8">${p.forn}</div>`:''}
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:.95rem;font-weight:800;color:#2563eb">${p.qtd} un.</div>
+        <div style="font-size:.65rem;color:#64748b">${fmt((p.qtd||0)*(p.custo||0))}</div>
+      </div>
+    </div>`).join('')
+  + `<div style="background:#eff6ff;border:1.5px solid #bfdbfe;border-radius:12px;padding:12px 14px;display:flex;justify-content:space-between;margin-top:4px">
+      <span style="font-size:.78rem;font-weight:800;color:#1d4ed8">${totalItens} unidades no total</span>
+      <span style="font-size:.95rem;font-weight:800;color:#1d4ed8">${fmt(totalValor)}</span>
+    </div>`;
+}
+
+function _renderRelGeral(){
+  const el = document.getElementById('relGeral');
+  if(!el) return;
+  const totalDivida = (D.clientes||[]).reduce((s,c)=>s+(c.saldo||0),0);
+  const totalEstoque = (D.estoque||[]).reduce((s,p)=>s+(p.qtd||0)*(p.custo||0),0);
+  const totalFuncionarios = (D.clientes||[]).length;
+  const funcDevedores = (D.clientes||[]).filter(c=>c.saldo>0).length;
+  const caixa = (D.caixaManualOverride!=null) ? D.caixaManualOverride
+    : Math.max(0, (D.recebido||0) - (D.saidasCaixa||0) + (D.caixaExtra||0));
+  const rows = [
+    { label:'💰 Caixa atual',         valor: fmt(caixa),             cor:'#16a34a' },
+    { label:'🔴 Total a receber',      valor: fmt(totalDivida),       cor: totalDivida>0?'#dc2626':'#16a34a' },
+    { label:'📦 Valor do estoque',     valor: fmt(totalEstoque),      cor:'#2563eb' },
+    { label:'👥 Funcionários',         valor: totalFuncionarios+' cadastrados', cor:'#475569' },
+    { label:'⚠️ Funcionários devedores', valor: funcDevedores+' de '+totalFuncionarios, cor: funcDevedores>0?'#d97706':'#16a34a' },
+  ];
+  el.innerHTML = rows.map(r=>`
+    <div style="display:flex;justify-content:space-between;align-items:center;background:#fff;border:1.5px solid #e2e8f0;border-radius:12px;padding:12px 14px;margin-bottom:8px">
+      <span style="font-size:.82rem;font-weight:600;color:#475569">${r.label}</span>
+      <span style="font-size:.9rem;font-weight:800;color:${r.cor}">${r.valor}</span>
+    </div>`).join('');
+}
+
 function aba(n){
-  
+
   document.querySelectorAll('.tab').forEach(function(t){ t.classList.remove('on'); });
   document.getElementById('t'+n).classList.add('on');
   
@@ -2886,6 +2981,7 @@ function aba(n){
   _posVisual = pos;
   _abaAtual  = n;
   if(n===1) _renderFuncionarios();
+  if(n===4) _renderRelatorios();
   document.querySelectorAll('#navFixed button').forEach(function(b){ b.classList.remove('on'); });
   document.querySelectorAll('#navFixed button')[_posVisual].classList.add('on');
   window.scrollTo({top:0, behavior:'smooth'});
@@ -2904,7 +3000,7 @@ document.addEventListener('touchend', function(e){
   if(Math.abs(dx) < 50) return;
   if(Math.abs(dy) > Math.abs(dx)) return;
   var novaPos = _posVisual + (dx < 0 ? 1 : -1);
-  if(novaPos >= 0 && novaPos <= 3){
+  if(novaPos >= 0 && novaPos <= 4){
     _posVisual = novaPos;
     aba(_ordemVisual[novaPos]);
   }
@@ -3548,11 +3644,17 @@ function _renderItensAcerto(){
 
   if(!pendentes.length){
     box.innerHTML = `<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px;text-align:center;font-size:.78rem;color:#94a3b8">✅ Sem itens pendentes — digite o valor livremente</div>`;
+    const elVal = document.getElementById('vAcertoValor');
+    if(elVal) elVal.removeAttribute('readonly');
     _atualizarResumoAcerto();
     return;
   }
 
-  box.innerHTML = pendentes.map(s => {
+  const elVal2 = document.getElementById('vAcertoValor');
+  if(elVal2) elVal2.setAttribute('readonly','readonly');
+
+  box.innerHTML = `<div style="background:#fef9c3;border:1.5px solid #fde047;border-radius:10px;padding:10px 12px;margin-bottom:10px;font-size:.75rem;font-weight:700;color:#854d0e">⚠️ Selecione qual entrega está sendo paga antes de confirmar</div>`
+  + pendentes.map(s => {
     const pago = pagoPorItem[String(s.id)]||0;
     const restante = Math.max(0, (s.valor||0) - pago);
     const sel = _itensSelecionadosAcerto[String(s.id)];
@@ -3582,6 +3684,11 @@ function _toggleItemAcerto(saidaId, restante){
   const chk = document.getElementById('chkA_'+saidaId);
   if(chk && chk.checked) _itensSelecionadosAcerto[saidaId] = restante;
   else delete _itensSelecionadosAcerto[saidaId];
+  const elVal = document.getElementById('vAcertoValor');
+  if(elVal){
+    if(Object.keys(_itensSelecionadosAcerto).length > 0) elVal.removeAttribute('readonly');
+    else elVal.setAttribute('readonly','readonly');
+  }
   _renderItensAcerto();
 }
 
@@ -3637,9 +3744,21 @@ function _sincronizarValorManualAcerto(){
 
 function _confirmarReceberAcerto(){
   if(_acertoFuncIdx === null) return;
+  const c = D.clientes[_acertoFuncIdx];
+
+  // Verifica se há itens pendentes sem seleção
+  const _hist = c.historico || [];
+  const _pagoPorItem = {};
+  _hist.filter(h=>h.tipo==='entrada'&&h.itensPix).forEach(e=>{
+    (e.itensPix||[]).forEach(ip=>{ _pagoPorItem[ip.saidaId]=(_pagoPorItem[ip.saidaId]||0)+(ip.valorPago||0); });
+  });
+  const _pendentes = _hist.filter(h=>h.tipo==='saida'&&(h.valor||0)-(_pagoPorItem[String(h.id)]||0)>0.001);
+  if(_pendentes.length > 0 && Object.keys(_itensSelecionadosAcerto).length === 0){
+    return alert('⚠️ Selecione qual entrega está sendo paga antes de confirmar.');
+  }
+
   const valor = _parseValor(document.getElementById('vAcertoValor').value);
   if(!(valor > 0)) return alert('Digite o valor do acerto.');
-  const c = D.clientes[_acertoFuncIdx];
   const itensSel = Object.entries(_itensSelecionadosAcerto);
   const itensPix = itensSel.length > 0
     ? itensSel.map(([id,v])=>({ saidaId: id, valorPago: +(+v).toFixed(2) }))

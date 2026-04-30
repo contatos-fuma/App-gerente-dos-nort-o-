@@ -2661,6 +2661,7 @@ function render(){
   }).join('');
 
   if(_abaAtual===1) _renderFuncionarios();
+  if(_abaAtual===4) _renderRelatorios();
   D.clientes.forEach(c=>{ tR+=c.saldo; });
 
   let htmlF='';

@@ -511,7 +511,10 @@ tr:last-child td{border-bottom:none}
     </div>
 
     <!-- Lista de itens pendentes -->
-    <div style="font-size:.65rem;font-weight:800;color:#475569;text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">📦 O que está sendo pago?</div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <div style="font-size:.65rem;font-weight:800;color:#475569;text-transform:uppercase;letter-spacing:.04em">📦 O que está sendo pago?</div>
+      <button onclick="_selecionarTodosItensAcerto()" style="font-size:.72rem;padding:5px 10px;background:#e0e7ff;color:#3730a3;border:none;border-radius:8px;font-weight:700;cursor:pointer">☑️ Selecionar todos</button>
+    </div>
     <div id="boxItensAcerto" style="margin-bottom:12px;max-height:40vh;overflow-y:auto"></div>
 
     <!-- Resumo do selecionado -->
@@ -3106,38 +3109,35 @@ function _enviarRelFuncWpp(ci){
   const c = D.clientes[ci];
   if(!c) return;
   const hist = c.historico || [];
-  const saidas   = hist.filter(h=>h.tipo==='saida').sort((a,b)=>parseDt(a.data)-parseDt(b.data));
-  const entradas = hist.filter(h=>h.tipo==='entrada').sort((a,b)=>parseDt(a.data)-parseDt(b.data));
+  const entradas = hist.filter(h=>h.tipo==='entrada');
   const pagoPorItem = {};
   entradas.filter(e=>e.itensPix).forEach(e=>{
     (e.itensPix||[]).forEach(ip=>{ pagoPorItem[ip.saidaId]=(pagoPorItem[ip.saidaId]||0)+(ip.valorPago||0); });
   });
-  const totalSaidas   = saidas.reduce((s,h)=>s+(h.valor||0),0);
+
+  // Apenas itens com saldo ainda pendente
+  const pendentes = hist.filter(h=>h.tipo==='saida')
+    .map(h=>({ ...h, restante: Math.max(0,(h.valor||0)-(pagoPorItem[String(h.id)]||0)) }))
+    .filter(h=>h.restante>0.01)
+    .sort((a,b)=>parseDt(a.data)-parseDt(b.data));
+
   const totalEntradas = entradas.reduce((s,h)=>s+(h.valor||0),0);
 
   let msg = `📋 *RELATÓRIO — ${c.nome.toUpperCase()}*\n`;
   msg += `_${new Date().toLocaleDateString('pt-BR')}_\n\n`;
 
-  if(saidas.length){
-    msg += `📦 *O QUE PEGOU*\n`;
-    saidas.forEach(h=>{
-      const pago     = pagoPorItem[String(h.id)]||0;
-      const restante = Math.max(0,(h.valor||0)-pago);
-      const status   = restante<0.01 ? '✅' : `⚠️ falta ${fmt(restante)}`;
-      msg += `• ${h.desc||'Entrega'} (${h.data||''}): *${fmt(h.valor)}* — ${status}\n`;
+  if(pendentes.length){
+    msg += `⚠️ *PENDÊNCIAS*\n`;
+    pendentes.forEach(h=>{
+      msg += `• ${h.desc||'Entrega'} (${h.data||''}): deve *${fmt(h.restante)}*\n`;
     });
-    msg += `*Total recebido: ${fmt(totalSaidas)}*\n\n`;
-  }
-
-  if(entradas.length){
-    msg += `💰 *O QUE PAGOU*\n`;
-    entradas.forEach(h=>{ msg += `• ${h.data||''}: *${fmt(h.valor)}*\n`; });
-    msg += `*Total pago: ${fmt(totalEntradas)}*\n\n`;
+    msg += '\n';
+  } else {
+    msg += `✅ Sem pendências\n\n`;
   }
 
   msg += `━━━━━━━━━━━━━━━\n`;
-  msg += `📦 Total entregue: *${fmt(totalSaidas)}*\n`;
-  msg += `💰 Total pago: *${fmt(totalEntradas)}*\n`;
+  msg += `💰 Total já pago: *${fmt(totalEntradas)}*\n`;
   msg += c.saldo>0
     ? `❗ *SALDO DEVEDOR: ${fmt(c.saldo)}*`
     : `✅ *CONTA ZERADA*`;
@@ -3152,31 +3152,29 @@ function _enviarRelFuncWpp(ci){
 function _enviarRelGeralWpp(){
   const clientes = D.clientes||[];
   if(!clientes.length) return alert('Nenhum funcionário cadastrado.');
+  const devedores = clientes.filter(c=>(c.saldo||0)>0.01);
+  if(!devedores.length) return alert('Nenhum funcionário com saldo devedor.');
   const data = new Date().toLocaleDateString('pt-BR');
   let msg = `📋 *RELATÓRIO GERAL — ${data}*\n`;
   msg += `━━━━━━━━━━━━━━━\n\n`;
-  clientes.forEach(c=>{
+  devedores.forEach(c=>{
     const hist = c.historico||[];
-    const saidas   = hist.filter(h=>h.tipo==='saida');
     const entradas = hist.filter(h=>h.tipo==='entrada');
     const pagoPorItem={};
     entradas.filter(e=>e.itensPix).forEach(e=>{
       (e.itensPix||[]).forEach(ip=>{ pagoPorItem[ip.saidaId]=(pagoPorItem[ip.saidaId]||0)+(ip.valorPago||0); });
     });
+    const pendentes = hist.filter(h=>h.tipo==='saida')
+      .map(h=>({...h, restante: Math.max(0,(h.valor||0)-(pagoPorItem[String(h.id)]||0))}))
+      .filter(h=>h.restante>0.01);
+    if(!pendentes.length) return;
     msg += `👤 *${c.nome.toUpperCase()}*\n`;
-    if(saidas.length){
-      saidas.forEach(h=>{
-        const pago     = pagoPorItem[String(h.id)]||0;
-        const restante = Math.max(0,(h.valor||0)-pago);
-        const status   = restante<0.01?'✅':'⚠️ deve '+fmt(restante);
-        msg += `  📦 ${h.desc||'Entrega'}: ${fmt(h.valor)} — ${status}\n`;
-      });
-    }
-    msg += c.saldo>0
-      ? `  ❗ *Saldo devedor: ${fmt(c.saldo)}*\n\n`
-      : `  ✅ Conta zerada\n\n`;
+    pendentes.forEach(h=>{
+      msg += `  📦 ${h.desc||'Entrega'} (${h.data||''}): deve *${fmt(h.restante)}*\n`;
+    });
+    msg += `  ❗ *Saldo devedor: ${fmt(c.saldo)}*\n\n`;
   });
-  const totalGeral = clientes.reduce((s,c)=>s+(c.saldo||0),0);
+  const totalGeral = devedores.reduce((s,c)=>s+(c.saldo||0),0);
   msg += `━━━━━━━━━━━━━━━\n`;
   msg += `💰 *TOTAL A RECEBER: ${fmt(totalGeral)}*`;
   window.open('https://wa.me/?text='+encodeURIComponent(msg),'_blank');
@@ -3260,7 +3258,7 @@ function aba(n){
   document.getElementById('t'+n).classList.add('on');
   
   document.querySelectorAll('.nav button').forEach(function(b){ b.classList.remove('on'); });
-  document.querySelectorAll('.nav button')[n].classList.add('on');
+  var _nb = document.querySelectorAll('.nav button')[n]; if(_nb) _nb.classList.add('on');
   
   var pos = _ordemVisual.indexOf(n);
   if(pos < 0) pos = 0;
@@ -3975,6 +3973,24 @@ function _toggleItemAcerto(saidaId, restante){
     if(Object.keys(_itensSelecionadosAcerto).length > 0) elVal.removeAttribute('readonly');
     else elVal.setAttribute('readonly','readonly');
   }
+  _renderItensAcerto();
+}
+
+function _selecionarTodosItensAcerto(){
+  if(_acertoFuncIdx === null) return;
+  const c = D.clientes[_acertoFuncIdx];
+  const hist = c.historico||[];
+  const entradas = hist.filter(h=>h.tipo==='entrada');
+  const pagoPorItem={};
+  entradas.filter(e=>e.itensPix).forEach(e=>{
+    (e.itensPix||[]).forEach(ip=>{ pagoPorItem[ip.saidaId]=(pagoPorItem[ip.saidaId]||0)+(ip.valorPago||0); });
+  });
+  hist.filter(h=>h.tipo==='saida').forEach(h=>{
+    const restante = Math.max(0,(h.valor||0)-(pagoPorItem[String(h.id)]||0));
+    if(restante>0.01) _itensSelecionadosAcerto[String(h.id)] = restante;
+  });
+  const elVal = document.getElementById('vAcertoValor');
+  if(elVal && Object.keys(_itensSelecionadosAcerto).length>0) elVal.removeAttribute('readonly');
   _renderItensAcerto();
 }
 

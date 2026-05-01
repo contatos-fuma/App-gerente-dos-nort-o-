@@ -70,7 +70,16 @@ export default {
     // Rotas de API conhecidas — tudo fora disso serve o arquivo estático
     const apiPaths = ['/admin/login','/admin/test-hash','/ia/analisar','/zapi/texto','/zapi/imagem','/storage/upload','/plano/verificar','/plano/ativar','/plano/bloquear','/plano/desbloquear','/func/token','/func/verificar','/func/pagar'];
     if (!apiPaths.includes(path)) {
-      return env.ASSETS.fetch(req);
+      const r = await env.ASSETS.fetch(req);
+      const ct = r.headers.get('content-type') || '';
+      if (ct.includes('text/html')) {
+        const newHeaders = new Headers(r.headers);
+        newHeaders.set('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0');
+        newHeaders.set('Pragma', 'no-cache');
+        newHeaders.set('Expires', '0');
+        return new Response(r.body, { status: r.status, statusText: r.statusText, headers: newHeaders });
+      }
+      return r;
     }
 
     if (req.method !== 'POST') return json({ error: 'Método não permitido' }, 405, cors);

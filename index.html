@@ -3255,9 +3255,9 @@ function _renderRelGeral(){
 
 function aba(n){
   try{
-    document.querySelectorAll('.tab').forEach(function(t){ t.classList.remove('on'); });
+    document.querySelectorAll('.tab').forEach(function(t){ t.classList.remove('on'); t.style.display='none'; });
     var tabEl = document.getElementById('t'+n);
-    if(tabEl) tabEl.classList.add('on');
+    if(tabEl){ tabEl.classList.add('on'); tabEl.style.display='block'; }
 
     var pos = _ordemVisual.indexOf(n);
     if(pos < 0) pos = 0;
@@ -3271,8 +3271,36 @@ function aba(n){
     var navBtn = document.querySelectorAll('#navFixed button')[_posVisual];
     if(navBtn) navBtn.classList.add('on');
 
+    if(n===4){
+      var diag = document.getElementById('_diagT4');
+      if(!diag){ diag=document.createElement('div'); diag.id='_diagT4'; diag.style.cssText='position:fixed;top:80px;left:8px;right:8px;background:#000;color:#0f0;padding:8px;font:11px monospace;z-index:99999;border-radius:6px;white-space:pre-wrap;line-height:1.4'; document.body.appendChild(diag); }
+      var t4 = document.getElementById('t4');
+      var info = 'DIAG ABA 4\n';
+      info += 't4 existe: '+(t4?'SIM':'NAO')+'\n';
+      if(t4){
+        info += 't4.className: '+t4.className+'\n';
+        info += 't4.style.display: '+t4.style.display+'\n';
+        info += 't4.children: '+t4.children.length+'\n';
+        var cs = window.getComputedStyle(t4);
+        info += 'computed display: '+cs.display+'\n';
+        info += 'computed visibility: '+cs.visibility+'\n';
+        info += 'offsetHeight: '+t4.offsetHeight+'px\n';
+        info += 'parent: '+(t4.parentElement?t4.parentElement.className||'no-class':'NULL')+'\n';
+      }
+      info += 'D.clientes: '+((window.D&&D.clientes)?D.clientes.length:'undef');
+      diag.textContent = info;
+      setTimeout(function(){ if(diag) diag.remove(); }, 30000);
+    }
+
     window.scrollTo({top:0, behavior:'smooth'});
-  }catch(e){ console.error('aba('+n+') erro:',e); }
+  }catch(e){
+    var d=document.createElement('div');
+    d.style.cssText='position:fixed;top:80px;left:8px;right:8px;background:#dc2626;color:#fff;padding:10px;z-index:99999;border-radius:6px;font:12px monospace';
+    d.textContent='ERRO aba('+n+'): '+e.message+'\n'+(e.stack||'');
+    document.body.appendChild(d);
+    setTimeout(function(){ d.remove(); }, 30000);
+    console.error('aba('+n+') erro:',e);
+  }
 }
 
 var _sx = 0, _sy = 0;

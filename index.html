@@ -829,7 +829,18 @@ tr:last-child td{border-bottom:none}
     <div class="section-title">🚚 Lista de Fornecedores</div>
     <div id="listaForn"></div>
   </div>
-</div>
+
+  <!-- ── ABA 4: RELATÓRIOS ── -->
+  <div id="t4" class="tab">
+    <div id="relGeral"></div>
+    <div class="section-title" style="margin-top:4px">👥 Funcionários — Situação Detalhada</div>
+    <button onclick="_enviarRelGeralWpp()" style="width:100%;padding:13px;background:#25d366;color:#fff;border:none;border-radius:12px;font-weight:800;font-size:.88rem;cursor:pointer;margin-bottom:14px">📲 Enviar relatório geral pelo WhatsApp</button>
+    <div id="relTodosFuncs"></div>
+    <div class="section-title" style="margin-top:18px">📦 Paiol (Estoque)</div>
+    <div id="relPaiol"></div>
+  </div>
+
+</div><!-- fim .content -->
 
 <!-- MODAL RESET SELETIVO -->
 <div id="modReset" class="overlay">
@@ -870,19 +881,7 @@ tr:last-child td{border-bottom:none}
       </div>
     </div>
   </div>
-
-  <!-- ── ABA 4: RELATÓRIOS ── -->
-  <div id="t4" class="tab">
-    <div style="background:#dc2626;color:#fff;padding:10px;border-radius:8px;font-weight:800;text-align:center;margin-bottom:12px">📋 ABA RELATÓRIO v2.2 — SE VOCÊ ESTÁ VENDO ISSO, A ABA FUNCIONA</div>
-    <div id="relGeral"></div>
-    <div class="section-title" style="margin-top:4px">👥 Funcionários — Situação Detalhada</div>
-    <button onclick="_enviarRelGeralWpp()" style="width:100%;padding:13px;background:#25d366;color:#fff;border:none;border-radius:12px;font-weight:800;font-size:.88rem;cursor:pointer;margin-bottom:14px">📲 Enviar relatório geral pelo WhatsApp</button>
-    <div id="relTodosFuncs"></div>
-    <div class="section-title" style="margin-top:18px">📦 Paiol (Estoque)</div>
-    <div id="relPaiol"></div>
-  </div>
-
-  </div><!-- fim .content -->
+</div><!-- fim modReset -->
 
 </div><!-- fim appBox-inner -->
 
@@ -3270,27 +3269,6 @@ function aba(n){
     document.querySelectorAll('#navFixed button').forEach(function(b){ b.classList.remove('on'); });
     var navBtn = document.querySelectorAll('#navFixed button')[_posVisual];
     if(navBtn) navBtn.classList.add('on');
-
-    if(n===4){
-      var diag = document.getElementById('_diagT4');
-      if(!diag){ diag=document.createElement('div'); diag.id='_diagT4'; diag.style.cssText='position:fixed;top:80px;left:8px;right:8px;background:#000;color:#0f0;padding:8px;font:11px monospace;z-index:99999;border-radius:6px;white-space:pre-wrap;line-height:1.4'; document.body.appendChild(diag); }
-      var t4 = document.getElementById('t4');
-      var info = 'DIAG ABA 4\n';
-      info += 't4 existe: '+(t4?'SIM':'NAO')+'\n';
-      if(t4){
-        info += 't4.className: '+t4.className+'\n';
-        info += 't4.style.display: '+t4.style.display+'\n';
-        info += 't4.children: '+t4.children.length+'\n';
-        var cs = window.getComputedStyle(t4);
-        info += 'computed display: '+cs.display+'\n';
-        info += 'computed visibility: '+cs.visibility+'\n';
-        info += 'offsetHeight: '+t4.offsetHeight+'px\n';
-        info += 'parent: '+(t4.parentElement?t4.parentElement.className||'no-class':'NULL')+'\n';
-      }
-      info += 'D.clientes: '+((window.D&&D.clientes)?D.clientes.length:'undef');
-      diag.textContent = info;
-      setTimeout(function(){ if(diag) diag.remove(); }, 30000);
-    }
 
     window.scrollTo({top:0, behavior:'smooth'});
   }catch(e){

@@ -3172,45 +3172,44 @@ function _renderRelFunc(){
 function _enviarRelFuncWpp(ci){
   const c = D.clientes[ci];
   if(!c) return;
-  const hist = c.historico || [];
+  const hist = c.historico||[];
   const entradas = hist.filter(h=>h.tipo==='entrada');
-  const pagoPorItem = {};
+  const pagoPorItem={};
   entradas.filter(e=>e.itensPix).forEach(e=>{
     (e.itensPix||[]).forEach(ip=>{ pagoPorItem[ip.saidaId]=(pagoPorItem[ip.saidaId]||0)+(ip.valorPago||0); });
   });
 
-  // Apenas itens com saldo ainda pendente
-  const pendentes = hist.filter(h=>h.tipo==='saida')
-    .map(h=>({ ...h, restante: Math.max(0,(h.valor||0)-(pagoPorItem[String(h.id)]||0)) }))
-    .filter(h=>h.restante>0.01)
-    .sort((a,b)=>parseDt(a.data)-parseDt(b.data));
-
+  const saidas = hist.filter(h=>h.tipo==='saida').sort((a,b)=>parseDt(a.data)-parseDt(b.data));
+  const totalSaidas   = saidas.reduce((s,h)=>s+(h.valor||0),0);
   const totalEntradas = entradas.reduce((s,h)=>s+(h.valor||0),0);
 
-  let msg = `📋 *RELATÓRIO — ${c.nome.toUpperCase()}*\n`;
-  msg += `_${new Date().toLocaleDateString('pt-BR')}_\n\n`;
+  let msg=`📋 *RELATÓRIO — ${c.nome.toUpperCase()}*\n`;
+  msg+=`_${new Date().toLocaleDateString('pt-BR')}_\n`;
+  msg+=`━━━━━━━━━━━━━━━\n\n`;
 
-  if(pendentes.length){
-    msg += `⚠️ *PENDÊNCIAS*\n`;
-    pendentes.forEach(h=>{
-      msg += `• ${h.desc||'Entrega'} (${h.data||''}): deve *${fmt(h.restante)}*\n`;
+  if(saidas.length){
+    msg+=`📦 *HISTÓRICO DE MERCADORIAS*\n\n`;
+    saidas.forEach(h=>{
+      const pago=pagoPorItem[String(h.id)]||0;
+      const restante=Math.max(0,(h.valor||0)-pago);
+      const quitado=restante<0.01;
+      msg+=`📌 *${h.desc||'Entrega'}* (${h.data||''})\n`;
+      msg+=`   Cobrado: ${fmt(h.valor)} | Pago: ${fmt(pago)}\n`;
+      msg+=quitado?`   ✅ Quitado\n\n`:`   ❗ Deve: *${fmt(restante)}*\n\n`;
     });
-    msg += '\n';
   } else {
-    msg += `✅ Sem pendências\n\n`;
+    msg+=`📦 Nenhuma mercadoria registrada\n\n`;
   }
 
-  msg += `━━━━━━━━━━━━━━━\n`;
-  msg += `💰 Total já pago: *${fmt(totalEntradas)}*\n`;
-  msg += c.saldo>0
-    ? `❗ *SALDO DEVEDOR: ${fmt(c.saldo)}*`
-    : `✅ *CONTA ZERADA*`;
+  msg+=`━━━━━━━━━━━━━━━\n`;
+  msg+=`📦 Total entregue: *${fmt(totalSaidas)}*\n`;
+  msg+=`💰 Total pago: *${fmt(totalEntradas)}*\n`;
+  msg+=c.saldo>0
+    ?`❗ *SALDO DEVEDOR: ${fmt(c.saldo)}*`
+    :`✅ *CONTA ZERADA*`;
 
-  const num = (c.wpp||'').replace(/\D/g,'');
-  const url = num
-    ? `https://wa.me/55${num}?text=${encodeURIComponent(msg)}`
-    : `https://wa.me/?text=${encodeURIComponent(msg)}`;
-  window.open(url, '_blank');
+  const num=(c.wpp||'').replace(/\D/g,'');
+  window.open(num?`https://wa.me/55${num}?text=${encodeURIComponent(msg)}`:`https://wa.me/?text=${encodeURIComponent(msg)}`,'_blank');
 }
 
 function _enviarRelGeralWpp(){
@@ -3435,13 +3434,22 @@ function _renderRelCaixa(){
 }
 
 function _enviarRelCaixaWpp(){
-  // PIX de funcionários agrupados por data
+  // PIX de funcionários agrupados por data, com detalhamento de mercadorias
   const pixPorDia={};
   (D.clientes||[]).forEach(c=>{
-    (c.historico||[]).filter(h=>h.tipo==='entrada').forEach(h=>{
+    const hist=c.historico||[];
+    hist.filter(h=>h.tipo==='entrada').forEach(h=>{
       const d=h.data||'sem data';
       if(!pixPorDia[d]) pixPorDia[d]={data:d,itens:[],total:0};
-      pixPorDia[d].itens.push({func:c.nome,desc:h.desc||'Pagamento',valor:h.valor||0});
+      // Montar lista de mercadorias pagas neste PIX
+      const mercs=[];
+      if(h.itensPix&&h.itensPix.length){
+        h.itensPix.forEach(ip=>{
+          const s=hist.find(x=>x.tipo==='saida'&&String(x.id)===String(ip.saidaId));
+          mercs.push({desc:s?s.desc:'Mercadoria',valor:ip.valorPago||0});
+        });
+      }
+      pixPorDia[d].itens.push({func:c.nome,desc:h.desc||'Pagamento',valor:h.valor||0,mercs});
       pixPorDia[d].total+=(h.valor||0);
     });
   });
@@ -3472,12 +3480,17 @@ function _enviarRelCaixaWpp(){
 
   let msg=`💰 *RELATÓRIO DO CAIXA*\n_${new Date().toLocaleDateString('pt-BR')}_\n━━━━━━━━━━━━━━━\n\n`;
 
-  // PIX por dia
+  // PIX por dia com mercadorias
   if(diasOrdenados.length){
     msg+=`✅ *PIX RECEBIDOS — por dia*\n`;
     diasOrdenados.forEach(dia=>{
-      msg+=`\n📅 *${dia.data}* — total ${fmt(dia.total)}\n`;
-      dia.itens.forEach(i=>{ msg+=`  + ${i.func}: ${i.desc} — *${fmt(i.valor)}*\n`; });
+      msg+=`\n📅 *${dia.data}* — total *${fmt(dia.total)}*\n`;
+      dia.itens.forEach(i=>{
+        msg+=`  + *${i.func}* — ${i.desc}: *${fmt(i.valor)}*\n`;
+        if(i.mercs&&i.mercs.length){
+          i.mercs.forEach(m=>{ msg+=`    📦 ${m.desc}: ${fmt(m.valor)}\n`; });
+        }
+      });
     });
     msg+=`\n💚 *Total recebido: ${fmt(totalEnt)}*\n\n`;
   } else {

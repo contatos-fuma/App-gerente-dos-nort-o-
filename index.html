@@ -1565,6 +1565,7 @@ function confirmarAjusteCard(){
   if(tipo==='caixa'){
     D.recebido = novo;
     D.caixaManualOverride = novo;
+    D.caixaManualOverrideData = hoje();
     D.saidasCaixa = 0; // override já bake-in o saldo real; zera acumulador de saídas
     D.caixaExtra = 0;  // idem — valor extra de entradas removidas já está no override
     let maxId=0;
@@ -3434,20 +3435,79 @@ function _renderRelCaixa(){
 }
 
 function _enviarRelCaixaWpp(){
-  const {entradas,saidas}=_coletarMovCaixa();
-  const totalEnt=entradas.reduce((s,e)=>s+e.valor,0);
-  const totalSai=saidas.reduce((s,e)=>s+e.valor,0);
+  // PIX de funcionários agrupados por data
+  const pixPorDia={};
+  (D.clientes||[]).forEach(c=>{
+    (c.historico||[]).filter(h=>h.tipo==='entrada').forEach(h=>{
+      const d=h.data||'sem data';
+      if(!pixPorDia[d]) pixPorDia[d]={data:d,itens:[],total:0};
+      pixPorDia[d].itens.push({func:c.nome,desc:h.desc||'Pagamento',valor:h.valor||0});
+      pixPorDia[d].total+=(h.valor||0);
+    });
+  });
+  const diasOrdenados=Object.values(pixPorDia).sort((a,b)=>parseDt(a.data)-parseDt(b.data));
+  const totalEnt=diasOrdenados.reduce((s,d)=>s+d.total,0);
+
+  // Pagamentos de notas de fornecedor saídos do caixa
+  const pagForn=[];
+  (D.fornecedores||[]).forEach(f=>{
+    (f.contas||[]).forEach(c=>{
+      (c.pagamentos||[]).filter(p=>p.origem==='caixa').forEach(p=>{
+        pagForn.push({data:p.data||'',forn:f.nome,desc:c.descricao||'Nota',valor:p.valor||0});
+      });
+    });
+  });
+  pagForn.sort((a,b)=>parseDt(a.data)-parseDt(b.data));
+
+  // Adiantamentos saídos do caixa
+  const adiantos=[];
+  (D.fornecedores||[]).forEach(f=>{
+    (f.adiantamentos||[]).filter(a=>a.origem==='caixa').forEach(a=>{
+      adiantos.push({data:a.data||'',forn:f.nome,desc:a.desc||'',valor:a.valor||0});
+    });
+  });
+  adiantos.sort((a,b)=>parseDt(a.data)-parseDt(b.data));
+
+  const totalSai=pagForn.reduce((s,p)=>s+p.valor,0)+adiantos.reduce((s,a)=>s+a.valor,0);
+
   let msg=`💰 *RELATÓRIO DO CAIXA*\n_${new Date().toLocaleDateString('pt-BR')}_\n━━━━━━━━━━━━━━━\n\n`;
-  if(entradas.length){
-    msg+=`✅ *ENTRADAS (${entradas.length})*\n`;
-    entradas.forEach(e=>{ msg+=`  + ${e.desc} (${e.data}): *${fmt(e.valor)}*\n`; });
-    msg+=`  💚 Total: *${fmt(totalEnt)}*\n\n`;
-  } else { msg+=`✅ Nenhuma entrada registrada\n\n`; }
-  if(saidas.length){
-    msg+=`🔴 *SAÍDAS (${saidas.length})*\n`;
-    saidas.forEach(e=>{ msg+=`  - ${e.desc} (${e.data}): *${fmt(e.valor)}*\n`; });
-    msg+=`  🔴 Total: *${fmt(totalSai)}*\n\n`;
-  } else { msg+=`🔴 Nenhuma saída registrada\n\n`; }
+
+  // PIX por dia
+  if(diasOrdenados.length){
+    msg+=`✅ *PIX RECEBIDOS — por dia*\n`;
+    diasOrdenados.forEach(dia=>{
+      msg+=`\n📅 *${dia.data}* — total ${fmt(dia.total)}\n`;
+      dia.itens.forEach(i=>{ msg+=`  + ${i.func}: ${i.desc} — *${fmt(i.valor)}*\n`; });
+    });
+    msg+=`\n💚 *Total recebido: ${fmt(totalEnt)}*\n\n`;
+  } else {
+    msg+=`✅ Nenhum PIX recebido\n\n`;
+  }
+
+  // Pagamentos a fornecedores
+  if(pagForn.length){
+    msg+=`🔴 *PAGAMENTOS A FORNECEDORES*\n`;
+    pagForn.forEach(p=>{ msg+=`  - ${p.forn} — ${p.desc} (${p.data}): *${fmt(p.valor)}*\n`; });
+    msg+='\n';
+  }
+
+  // Adiantamentos
+  if(adiantos.length){
+    msg+=`💳 *ADIANTAMENTOS A FORNECEDORES*\n`;
+    adiantos.forEach(a=>{ msg+=`  - ${a.forn}${a.desc?' — '+a.desc:''} (${a.data}): *${fmt(a.valor)}*\n`; });
+    msg+='\n';
+  }
+
+  if(pagForn.length||adiantos.length){
+    msg+=`🔴 *Total saído: ${fmt(totalSai)}*\n\n`;
+  }
+
+  // Ajuste manual do caixa
+  if(D.caixaManualOverride!=null){
+    const dt=D.caixaManualOverrideData||'';
+    msg+=`⚙️ *AJUSTE MANUAL DO CAIXA*${dt?' em '+dt:''}: definido em *${fmt(D.caixaManualOverride)}*\n\n`;
+  }
+
   msg+=`━━━━━━━━━━━━━━━\n💰 *SALDO ATUAL NO CAIXA: ${fmt(D.recebido||0)}*`;
   const num=(D.wppGerente||'').replace(/\D/g,'');
   window.open(num?`https://wa.me/55${num}?text=${encodeURIComponent(msg)}`:`https://wa.me/?text=${encodeURIComponent(msg)}`,'_blank');

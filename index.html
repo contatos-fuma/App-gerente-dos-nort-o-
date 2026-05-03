@@ -2295,7 +2295,7 @@ function entrarNoApp(){
         const cLocal = (D.clientes||[]).find(c => c.nome === cNuvem.nome);
         if(!cLocal) return;
         const idsLocal = new Set((cLocal.historico||[]).map(h=>String(h.id)));
-        const novas = (cNuvem.historico||[]).filter(h => !idsLocal.has(String(h.id)));
+        const novas = (cNuvem.historico||[]).filter(h => !idsLocal.has(String(h.id)) && (h.id||0) > (D.resetTs||0));
         if(novas.length > 0) temNovos = true;
       });
 
@@ -2307,7 +2307,7 @@ function entrarNoApp(){
           const histLocal = D.clientes[i].historico || [];
           const histNuvem = cNuvem.historico || [];
           const idsLocal = new Set(histLocal.map(h=>String(h.id)));
-          const novas = histNuvem.filter(h => !idsLocal.has(String(h.id)));
+          const novas = histNuvem.filter(h => !idsLocal.has(String(h.id)) && (h.id||0) > (D.resetTs||0));
           if(novas.length > 0){
             D.clientes[i].historico = [...histLocal, ...novas].sort((a,b)=>(a.id||0)-(b.id||0));
             // Recalcula saldo
@@ -2590,7 +2590,7 @@ function save(){
             // Pega IDs do histórico local
             const idsLocal = new Set(histLocal.map(h=>String(h.id)));
             // Adiciona ao local qualquer entrada da nuvem que não existe localmente
-            const novas = histNuvem.filter(h => !idsLocal.has(String(h.id)));
+            const novas = histNuvem.filter(h => !idsLocal.has(String(h.id)) && (h.id||0) > (D.resetTs||0));
             if(novas.length > 0){
               D.clientes[i].historico = [...histLocal, ...novas]
                 .sort((a,b)=> (a.id||0) - (b.id||0));
@@ -3179,30 +3179,27 @@ function _enviarRelFuncWpp(ci){
     (e.itensPix||[]).forEach(ip=>{ pagoPorItem[ip.saidaId]=(pagoPorItem[ip.saidaId]||0)+(ip.valorPago||0); });
   });
 
-  const saidas = hist.filter(h=>h.tipo==='saida').sort((a,b)=>parseDt(a.data)-parseDt(b.data));
-  const totalSaidas   = saidas.reduce((s,h)=>s+(h.valor||0),0);
   const totalEntradas = entradas.reduce((s,h)=>s+(h.valor||0),0);
 
-  let msg=`📋 *RELATÓRIO — ${c.nome.toUpperCase()}*\n`;
+  const pendentes = hist.filter(h=>h.tipo==='saida')
+    .map(h=>({...h, restante: Math.max(0,(h.valor||0)-(pagoPorItem[String(h.id)]||0))}))
+    .filter(h=>h.restante>0.01)
+    .sort((a,b)=>parseDt(b.data)-parseDt(a.data));
+
+  let msg=`⚠️ *MERCADORIAS PENDENTES — ${c.nome.toUpperCase()}*\n`;
   msg+=`_${new Date().toLocaleDateString('pt-BR')}_\n`;
   msg+=`━━━━━━━━━━━━━━━\n\n`;
 
-  if(saidas.length){
-    msg+=`📦 *HISTÓRICO DE MERCADORIAS*\n\n`;
-    saidas.forEach(h=>{
-      const pago=pagoPorItem[String(h.id)]||0;
-      const restante=Math.max(0,(h.valor||0)-pago);
-      const quitado=restante<0.01;
-      msg+=`📌 *${h.desc||'Entrega'}* (${h.data||''})\n`;
-      msg+=`   Cobrado: ${fmt(h.valor)} | Pago: ${fmt(pago)}\n`;
-      msg+=quitado?`   ✅ Quitado\n\n`:`   ❗ Deve: *${fmt(restante)}*\n\n`;
+  if(pendentes.length){
+    pendentes.forEach(h=>{
+      msg+=`📌 *${h.desc||'Entrega'}* — ${h.data||''}\n`;
+      msg+=`   ❗ Deve: *${fmt(h.restante)}*\n\n`;
     });
   } else {
-    msg+=`📦 Nenhuma mercadoria registrada\n\n`;
+    msg+=`✅ Nenhuma pendência\n\n`;
   }
 
   msg+=`━━━━━━━━━━━━━━━\n`;
-  msg+=`📦 Total entregue: *${fmt(totalSaidas)}*\n`;
   msg+=`💰 Total pago: *${fmt(totalEntradas)}*\n`;
   msg+=c.saldo>0
     ?`❗ *SALDO DEVEDOR: ${fmt(c.saldo)}*`
@@ -4057,6 +4054,7 @@ function restaurarDoBk(){
   try{
     const novo = JSON.parse(txt);
     D = Object.assign({estoque:[],clientes:[],fornecedores:[],recebido:0}, novo);
+    D.resetTs = Date.now();
     save();
     fecharMod('modBackup');
     alert('✅ Dados restaurados com sucesso!');
@@ -5043,12 +5041,12 @@ function resetSeletivo(tipo){
   const msgs={historico:'Limpar todo o histórico de entregas?\n\nFuncionários serão mantidos mas saldos zerados.',caixa:'Zerar o caixa?',estoque:'Limpar todo o estoque?',clientes:'Apagar TODOS os funcionários?\n\nIrreversível!',fornecedores:'Apagar TODOS os fornecedores e notas?\n\nIrreversível!',tudo:'⚠️ APAGAR TUDO?\n\nEstoque, funcionários, fornecedores e caixa.\n\nIrreversível!'};
   if(!confirm(msgs[tipo])) return;
   if(prompt('Digite  CONFIRMAR  para prosseguir:')!=='CONFIRMAR') return alert('❌ Cancelado.');
-  if(tipo==='historico'){ D.clientes.forEach(c=>{c.historico=[];c.saldo=0;}); D.recebido=0; D.caixaManualOverride=null; D.caixaManualOverrideTs=null; D.caixaExtra=0; }
-  else if(tipo==='caixa'){ D.recebido=0; D.caixaManualOverride=null; D.caixaManualOverrideTs=null; D.caixaExtra=0; }
+  if(tipo==='historico'){ D.clientes.forEach(c=>{c.historico=[];c.saldo=0;}); D.recebido=0; D.caixaManualOverride=null; D.caixaManualOverrideTs=null; D.caixaExtra=0; D.saidasCaixa=0; D.resetTs=Date.now(); }
+  else if(tipo==='caixa'){ D.recebido=0; D.caixaManualOverride=null; D.caixaManualOverrideTs=null; D.caixaExtra=0; D.saidasCaixa=0; }
   else if(tipo==='estoque'){ D.estoque=[]; D.custoOverride=null; }
-  else if(tipo==='clientes'){ D.clientes=[]; D.recebido=0; D.receberOverride=null; D.caixaManualOverride=null; D.caixaManualOverrideTs=null; D.caixaExtra=0; _relIdx=null; }
+  else if(tipo==='clientes'){ D.clientes=[]; D.recebido=0; D.receberOverride=null; D.caixaManualOverride=null; D.caixaManualOverrideTs=null; D.caixaExtra=0; D.saidasCaixa=0; D.resetTs=Date.now(); _relIdx=null; }
   else if(tipo==='fornecedores'){ D.fornecedores=[]; D.fornecOverride=null; fornAberto={}; _pagFi=null;_pagCi=null;_fornRapidoIdx=null; }
-  else if(tipo==='tudo'){ D={estoque:[],clientes:[],fornecedores:[],recebido:0}; fornAberto={}; _relIdx=null; _pagFi=null;_pagCi=null;_fornRapidoIdx=null; }
+  else if(tipo==='tudo'){ D={estoque:[],clientes:[],fornecedores:[],recebido:0,saidasCaixa:0,resetTs:Date.now()}; fornAberto={}; _relIdx=null; _pagFi=null;_pagCi=null;_fornRapidoIdx=null; }
   fecharMod('modReset'); save(); alert('✅ Concluído!');
 }
 

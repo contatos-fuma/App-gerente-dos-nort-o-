@@ -1581,6 +1581,9 @@ function confirmarAjusteCard(){
     D.clientes.forEach(c=>{ (c.historico||[]).forEach(h=>{ if((h.id||0)>maxId) maxId=h.id||0; }); });
     D.caixaManualOverrideTs = maxId;
     _caixaAjustadoManualmente = true;
+    // Log histórico de ajustes manuais
+    if(!D.logAjustesCaixa) D.logAjustesCaixa=[];
+    D.logAjustesCaixa.push({id:Date.now(), valor:novo, antes, data:hoje(), motivo:motivo||''});
   } else if(tipo==='fornec'){
     D.fornecOverride = novo;
   } else if(tipo==='receber'){
@@ -3395,6 +3398,19 @@ function _coletarMovCaixa(){
         desc:f.nome+' — Adiantamento: '+(a.desc||''),valor:a.valor||0,data:a.data||''});
     });
   });
+  // Log de ajustes manuais (histórico completo)
+  if((D.logAjustesCaixa||[]).length){
+    D.logAjustesCaixa.forEach(a=>{
+      ev.push({ts:a.id||parseDt(a.data||''),tipo:'ajuste',
+        desc:'✏️ Ajuste manual'+(a.motivo?' — '+a.motivo:''),
+        valor:a.valor,antesReal:a.antes,data:a.data||''});
+    });
+  } else if(D.caixaManualOverride!=null){
+    // fallback: override atual sem histórico (antes da versão com log)
+    ev.push({ts:D.caixaManualOverrideTs||parseDt(D.caixaManualOverrideData||''),
+      tipo:'ajuste',desc:'✏️ Ajuste manual do caixa',
+      valor:D.caixaManualOverride,antesReal:null,data:D.caixaManualOverrideData||''});
+  }
   return ev.sort((a,b)=>a.ts-b.ts);
 }
 
@@ -3418,28 +3434,31 @@ function _renderRelCaixa(){
   const totalSai=eventos.filter(e=>e.tipo==='saida').reduce((s,e)=>s+e.valor,0);
   const caixaAtual=D.recebido||0;
 
-  // ✅ CALCULA DE TRÁS PARA FRENTE ancorando no saldo real atual
-  // Isso garante que "ficou" no evento mais recente = D.recebido exato
+  // Calcula de trás pra frente ancorando no saldo real atual
   let saldo=caixaAtual;
   const comSaldo=[];
   [...eventos].reverse().forEach(ev=>{
-    const depois=saldo;
-    let antes;
-    if(ev.tipo==='entrada')      antes=saldo-ev.valor;
-    else if(ev.tipo==='saida')   antes=saldo+ev.valor;
-    else                         antes=saldo; // ajuste manual: não altera o cálculo retroativo
-    comSaldo.unshift({...ev,antes,depois});
-    if(ev.tipo!=='ajuste') saldo=antes;
+    if(ev.tipo==='ajuste' && ev.antesReal!==null && ev.antesReal!==undefined){
+      // Usa valores reais armazenados no log
+      comSaldo.unshift({...ev,antes:ev.antesReal,depois:ev.valor});
+      saldo=ev.antesReal;
+    } else {
+      const depois=saldo;
+      const antes=ev.tipo==='entrada'?saldo-ev.valor:ev.tipo==='saida'?saldo+ev.valor:saldo;
+      comSaldo.unshift({...ev,antes,depois});
+      if(ev.tipo!=='ajuste') saldo=antes;
+    }
   });
 
-  let html=`<div style="background:#f0fdf4;border:2px solid #86efac;border-radius:14px;padding:14px;margin-bottom:12px">
-    <div style="display:flex;justify-content:space-between;font-size:.82rem;padding:4px 0;border-bottom:1px solid #bbf7d0">
+  // Card de resumo
+  let html=`<div style="background:#f0fdf4;border:2px solid #86efac;border-radius:12px;padding:10px 14px;margin-bottom:10px">
+    <div style="display:flex;justify-content:space-between;font-size:.78rem;padding:3px 0;border-bottom:1px solid #bbf7d0">
       <span>✅ Total entradas</span><b style="color:#16a34a">${fmt(totalEnt)}</b>
     </div>
-    <div style="display:flex;justify-content:space-between;font-size:.82rem;padding:4px 0;border-bottom:1px solid #bbf7d0">
+    <div style="display:flex;justify-content:space-between;font-size:.78rem;padding:3px 0;border-bottom:1px solid #bbf7d0">
       <span>🔴 Total saídas</span><b style="color:#dc2626">${fmt(totalSai)}</b>
     </div>
-    <div style="display:flex;justify-content:space-between;font-size:.95rem;font-weight:800;padding:6px 0 0">
+    <div style="display:flex;justify-content:space-between;font-size:.88rem;font-weight:800;padding:5px 0 0">
       <span>💰 Saldo no caixa</span><b style="color:#16a34a">${fmt(caixaAtual)}</b>
     </div>
   </div>`;
@@ -3447,28 +3466,43 @@ function _renderRelCaixa(){
   if(!comSaldo.length){
     html+=`<div style="background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:10px;padding:12px;text-align:center;font-size:.8rem;color:#94a3b8">Nenhuma movimentação registrada</div>`;
   } else {
-    html+=`<div style="font-size:.7rem;font-weight:800;color:#475569;text-transform:uppercase;letter-spacing:.04em;margin:10px 0 6px">📋 EXTRATO (${comSaldo.length})</div>`;
-    [...comSaldo].reverse().forEach(ev=>{
+    // Tabela compacta com altura máxima para não bloquear os outros relatórios
+    html+=`<div style="font-size:.68rem;font-weight:800;color:#475569;text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">📋 Extrato (${comSaldo.length})</div>
+    <div style="max-height:280px;overflow-y:auto;border:1.5px solid #e2e8f0;border-radius:10px">
+    <table style="width:100%;border-collapse:collapse;font-size:.72rem">
+      <thead>
+        <tr style="background:#f8fafc;position:sticky;top:0">
+          <th style="padding:6px 8px;text-align:left;color:#475569;font-weight:700;border-bottom:1px solid #e2e8f0">Descrição</th>
+          <th style="padding:6px 8px;text-align:right;color:#475569;font-weight:700;border-bottom:1px solid #e2e8f0;white-space:nowrap">Valor</th>
+          <th style="padding:6px 8px;text-align:right;color:#475569;font-weight:700;border-bottom:1px solid #e2e8f0;white-space:nowrap">Era</th>
+          <th style="padding:6px 8px;text-align:right;color:#475569;font-weight:700;border-bottom:1px solid #e2e8f0;white-space:nowrap">Ficou</th>
+        </tr>
+      </thead>
+      <tbody>`;
+    [...comSaldo].reverse().forEach((ev,i)=>{
       const isAjuste=ev.tipo==='ajuste';
       const ent=ev.tipo==='entrada';
-      const cor=isAjuste?'#f59e0b':ent?'#16a34a':'#dc2626';
-      const borda=isAjuste?'#fed7aa':ent?'#bbf7d0':'#fecaca';
+      const cor=isAjuste?'#b45309':ent?'#16a34a':'#dc2626';
+      const bg=i%2===0?'#fff':'#f8fafc';
       const icone=isAjuste?'✏️':ent?'✅':'🔴';
       const sinal=ent?'+':'-';
-      const subLinha=isAjuste
-        ?`<div style="font-size:.68rem;color:#92400e;margin-top:3px">caixa definido para <b style="color:#f59e0b">${fmt(ev.depois)}</b></div>`
-        :`<div style="font-size:.68rem;color:#64748b;margin-top:3px">era <b>${fmt(ev.antes)}</b> → ficou <b style="color:${cor}">${fmt(ev.depois)}</b></div>`;
-      html+=`<div style="background:#fff;border:1.5px solid ${borda};border-radius:10px;padding:10px 12px;margin-bottom:6px">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start">
-          <div style="flex:1;min-width:0">
-            <div style="font-size:.8rem;font-weight:700;color:#1e293b">${icone} ${ev.desc}</div>
-            <div style="font-size:.65rem;color:#94a3b8;margin-top:2px">${ev.data}</div>
-            ${subLinha}
-          </div>
-          ${isAjuste?'':`<span style="font-size:.88rem;font-weight:800;color:${cor};flex-shrink:0;margin-left:8px">${sinal}${fmt(ev.valor)}</span>`}
-        </div>
-      </div>`;
+      const valorCell=isAjuste
+        ?`<td style="padding:6px 8px;text-align:right;color:#b45309;font-weight:700;white-space:nowrap">definido</td>`
+        :`<td style="padding:6px 8px;text-align:right;color:${cor};font-weight:700;white-space:nowrap">${sinal}${fmt(ev.valor)}</td>`;
+      const eraCell=isAjuste&&ev.antesReal===null
+        ?`<td style="padding:6px 8px;text-align:right;color:#94a3b8;font-size:.65rem">—</td>`
+        :`<td style="padding:6px 8px;text-align:right;color:#64748b;white-space:nowrap">${fmt(ev.antes)}</td>`;
+      html+=`<tr style="background:${bg};border-bottom:1px solid #f1f5f9">
+        <td style="padding:6px 8px;color:#1e293b">
+          <div style="font-weight:600">${icone} ${ev.desc}</div>
+          <div style="font-size:.62rem;color:#94a3b8">${ev.data}</div>
+        </td>
+        ${valorCell}
+        ${eraCell}
+        <td style="padding:6px 8px;text-align:right;color:${cor};font-weight:700;white-space:nowrap">${fmt(ev.depois)}</td>
+      </tr>`;
     });
+    html+=`</tbody></table></div>`;
   }
   el.innerHTML=html;
 }

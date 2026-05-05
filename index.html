@@ -368,6 +368,12 @@ tr:last-child td{border-bottom:none}
     <!-- Cards resumo -->
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px" id="dashCards"></div>
 
+    <!-- Extrato do Caixa (topo para visibilidade) -->
+    <div style="background:#0f172a;border:2px solid #f59e0b;border-radius:14px;padding:14px;margin-bottom:12px">
+      <div style="font-size:.75rem;font-weight:800;color:#f59e0b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px">💰 EXTRATO DO CAIXA — saldo antes/depois de cada movimento</div>
+      <div id="dashExtratoCaixa" style="max-height:500px;overflow-y:auto;background:#1e293b;border-radius:10px;padding:8px"></div>
+    </div>
+
     <!-- Top devedores -->
     <div style="background:#1e293b;border-radius:14px;padding:14px;margin-bottom:12px">
       <div style="font-size:.65rem;font-weight:800;color:#fbbf24;text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px">🏆 Maiores Devedores</div>
@@ -397,12 +403,6 @@ tr:last-child td{border-bottom:none}
     <div style="background:#1e293b;border-radius:14px;padding:14px;margin-bottom:12px">
       <div style="font-size:.65rem;font-weight:800;color:#4ade80;text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px">💸 Todos os PIX Recebidos</div>
       <div id="dashPixRecebidos" style="max-height:320px;overflow-y:auto"></div>
-    </div>
-
-    <!-- Extrato do Caixa -->
-    <div style="background:#1e293b;border-radius:14px;padding:14px;margin-bottom:12px">
-      <div style="font-size:.65rem;font-weight:800;color:#f59e0b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px">💰 Extrato do Caixa</div>
-      <div id="dashExtratoCaixa" style="max-height:400px;overflow-y:auto"></div>
     </div>
   </div>
 </div>
@@ -6653,10 +6653,99 @@ function verComprovante(idx){
   document.getElementById('modVerComp').classList.add('on');
 }
 
+function _renderExtratoCaixa(){
+  const el = document.getElementById('dashExtratoCaixa');
+  if(!el) return;
+  try {
+    const eventos = [];
+    (D.clientes||[]).forEach(c => {
+      (c.historico||[]).filter(h => h.tipo === 'entrada').forEach(h => {
+        eventos.push({
+          ts: h.id || (h.data ? parseDt(h.data) : 0),
+          tipo: 'entrada',
+          desc: (h.desc || 'PIX recebido') + ' — ' + (c.nome || ''),
+          valor: h.valor || 0,
+          data: h.data || ''
+        });
+      });
+    });
+    (D.fornecedores||[]).forEach(f => {
+      (f.contas||[]).forEach(c => {
+        (c.pagamentos||[]).filter(p => p.origem === 'caixa').forEach(p => {
+          eventos.push({
+            ts: p.id || (p.data ? parseDt(p.data) : 0),
+            tipo: 'saida',
+            desc: (f.nome || 'Fornecedor') + ' — ' + (c.descricao || 'Pagamento'),
+            valor: p.valor || 0,
+            data: p.data || ''
+          });
+        });
+      });
+      (f.adiantamentos||[]).filter(a => a.origem === 'caixa').forEach(a => {
+        eventos.push({
+          ts: a.id || (a.data ? parseDt(a.data) : 0),
+          tipo: 'saida',
+          desc: (f.nome || 'Fornecedor') + ' — Adiantamento: ' + (a.desc || ''),
+          valor: a.valor || 0,
+          data: a.data || ''
+        });
+      });
+    });
+
+    eventos.sort((a, b) => a.ts - b.ts);
+
+    if(!eventos.length){
+      el.innerHTML = '<div style="color:#94a3b8;text-align:center;padding:20px;font-size:.8rem">Nenhuma movimentação no caixa registrada ainda.</div>';
+      return;
+    }
+
+    let saldo = 0;
+    const comSaldo = eventos.map(ev => {
+      const antes = saldo;
+      saldo += ev.tipo === 'entrada' ? ev.valor : -ev.valor;
+      return { ...ev, antes, depois: saldo };
+    });
+
+    const totalEnt = eventos.filter(e => e.tipo === 'entrada').reduce((s,e) => s+e.valor, 0);
+    const totalSai = eventos.filter(e => e.tipo === 'saida').reduce((s,e) => s+e.valor, 0);
+
+    let html = `<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:10px;padding:8px;background:#0f172a;border-radius:8px">
+      <div style="text-align:center"><div style="font-size:.55rem;color:#94a3b8;text-transform:uppercase">Entradas</div><div style="font-size:.85rem;font-weight:800;color:#4ade80">${fmt(totalEnt)}</div></div>
+      <div style="text-align:center"><div style="font-size:.55rem;color:#94a3b8;text-transform:uppercase">Saídas</div><div style="font-size:.85rem;font-weight:800;color:#f87171">${fmt(totalSai)}</div></div>
+      <div style="text-align:center"><div style="font-size:.55rem;color:#94a3b8;text-transform:uppercase">Saldo</div><div style="font-size:.85rem;font-weight:800;color:#fbbf24">${fmt(D.recebido||0)}</div></div>
+    </div>`;
+
+    html += [...comSaldo].reverse().map(ev => {
+      const ent = ev.tipo === 'entrada';
+      const cor = ent ? '#4ade80' : '#f87171';
+      const icone = ent ? '✅' : '🔴';
+      const sinal = ent ? '+' : '−';
+      return `<div style="padding:10px 8px;border-bottom:1px solid rgba(255,255,255,.08)">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+          <div style="flex:1;min-width:0">
+            <div style="font-size:.78rem;font-weight:700;color:#f1f5f9;word-break:break-word">${icone} ${ev.desc}</div>
+            <div style="font-size:.6rem;color:#94a3b8;margin-top:2px">📅 ${ev.data || 'sem data'}</div>
+            <div style="font-size:.62rem;color:#cbd5e1;margin-top:3px;background:#0f172a;padding:3px 6px;border-radius:4px;display:inline-block">era <b>${fmt(ev.antes)}</b> → ficou <b style="color:${cor}">${fmt(ev.depois)}</b></div>
+          </div>
+          <div style="font-size:.85rem;font-weight:800;color:${cor};white-space:nowrap;flex-shrink:0">${sinal} ${fmt(ev.valor)}</div>
+        </div>
+      </div>`;
+    }).join('');
+
+    el.innerHTML = html;
+  } catch(e) {
+    console.error('Erro no extrato:', e);
+    el.innerHTML = '<div style="color:#f87171;padding:12px;font-size:.75rem">Erro ao carregar extrato: '+e.message+'</div>';
+  }
+}
+
 function abrirDashboard(){
+  // Renderiza extrato PRIMEIRO para garantir visibilidade
+  _renderExtratoCaixa();
+
   const clientes = D.clientes || [];
 
-  
+
   const totalDevido   = clientes.reduce((s,c) => s + Math.max(0, c.saldo||0), 0);
   const totalRecebido = clientes.reduce((s,c) => {
     return s + (c.historico||[]).filter(h=>h.tipo==='entrada').reduce((x,h)=>x+(h.valor||0),0);
@@ -6815,42 +6904,6 @@ function abrirDashboard(){
         </div>
         <div style="font-size:.8rem;font-weight:800;color:#4ade80;margin-left:10px;white-space:nowrap">+ ${fmt(h.valor||0)}</div>
       </div>`).join('');
-  }
-
-  // Extrato do Caixa com saldo antes/depois
-  try {
-    const elExtrato = document.getElementById('dashExtratoCaixa');
-    if(elExtrato){
-      const evCaixa = _coletarMovCaixa(); // crescente
-      if(!evCaixa.length){
-        elExtrato.innerHTML = '<div style="font-size:.75rem;color:#64748b;text-align:center;padding:10px">Nenhuma movimentação no caixa.</div>';
-      } else {
-        let saldoAcc = 0;
-        const comSaldo = evCaixa.map(ev => {
-          const antes = saldoAcc;
-          saldoAcc += ev.tipo === 'entrada' ? ev.valor : -ev.valor;
-          return {...ev, antes, depois: saldoAcc};
-        });
-        elExtrato.innerHTML = [...comSaldo].reverse().map(ev => {
-          const ent = ev.tipo === 'entrada';
-          const cor = ent ? '#4ade80' : '#f87171';
-          const icone = ent ? '✅' : '🔴';
-          const sinal = ent ? '+' : '−';
-          return `<div style="padding:8px 0;border-bottom:1px solid rgba(255,255,255,.06)">
-            <div style="display:flex;justify-content:space-between;align-items:flex-start">
-              <div style="flex:1;min-width:0">
-                <div style="font-size:.75rem;font-weight:700;color:#f1f5f9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${icone} ${ev.desc}</div>
-                <div style="font-size:.62rem;color:#94a3b8;margin-top:1px">📅 ${ev.data}</div>
-                <div style="font-size:.62rem;color:#64748b;margin-top:2px">era <b style="color:#cbd5e1">${fmt(ev.antes)}</b> → ficou <b style="color:${cor}">${fmt(ev.depois)}</b></div>
-              </div>
-              <div style="font-size:.8rem;font-weight:800;color:${cor};margin-left:10px;white-space:nowrap;flex-shrink:0">${sinal} ${fmt(ev.valor)}</div>
-            </div>
-          </div>`;
-        }).join('');
-      }
-    }
-  } catch(e) {
-    console.error('Erro ao carregar extrato do caixa:', e);
   }
 
   document.getElementById('modDashboard').classList.add('on');

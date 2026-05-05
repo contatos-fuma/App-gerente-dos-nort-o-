@@ -3366,34 +3366,43 @@ function _renderRelGeral(){
 }
 
 function _coletarMovCaixa(){
-  const entradas=[];
+  const ev=[];
   (D.clientes||[]).forEach(c=>{
     (c.historico||[]).filter(h=>h.tipo==='entrada').forEach(h=>{
-      entradas.push({data:h.data||'',desc:(h.desc||'Pagamento')+' — '+c.nome,valor:h.valor||0});
+      ev.push({ts:h.id||parseDt(h.data||''),tipo:'entrada',
+        desc:(h.desc||'Pagamento')+' — '+c.nome,valor:h.valor||0,data:h.data||''});
     });
   });
-  entradas.sort((a,b)=>parseDt(a.data)-parseDt(b.data));
-  const saidas=[];
   (D.fornecedores||[]).forEach(f=>{
     (f.contas||[]).forEach(c=>{
       (c.pagamentos||[]).filter(p=>p.origem==='caixa').forEach(p=>{
-        saidas.push({data:p.data||'',desc:f.nome+' — '+c.descricao,valor:p.valor||0});
+        ev.push({ts:p.id||parseDt(p.data||''),tipo:'saida',
+          desc:f.nome+' — '+c.descricao,valor:p.valor||0,data:p.data||''});
       });
     });
     (f.adiantamentos||[]).filter(a=>a.origem==='caixa').forEach(a=>{
-      saidas.push({data:a.data||'',desc:f.nome+' — Adiantamento: '+(a.desc||''),valor:a.valor||0});
+      ev.push({ts:a.id||parseDt(a.data||''),tipo:'saida',
+        desc:f.nome+' — Adiantamento: '+(a.desc||''),valor:a.valor||0,data:a.data||''});
     });
   });
-  saidas.sort((a,b)=>parseDt(a.data)-parseDt(b.data));
-  return {entradas,saidas};
+  return ev.sort((a,b)=>a.ts-b.ts);
 }
 
 function _renderRelCaixa(){
   const el=document.getElementById('relCaixa'); if(!el) return;
-  const {entradas,saidas}=_coletarMovCaixa();
-  const totalEnt=entradas.reduce((s,e)=>s+e.valor,0);
-  const totalSai=saidas.reduce((s,e)=>s+e.valor,0);
+  const eventos=_coletarMovCaixa(); // crescente
+  const totalEnt=eventos.filter(e=>e.tipo==='entrada').reduce((s,e)=>s+e.valor,0);
+  const totalSai=eventos.filter(e=>e.tipo==='saida').reduce((s,e)=>s+e.valor,0);
   const caixa=D.recebido||0;
+
+  // Calcula saldo antes/depois para cada evento
+  let saldo=0;
+  const comSaldo=eventos.map(ev=>{
+    const antes=saldo;
+    saldo+=ev.tipo==='entrada'?ev.valor:-ev.valor;
+    return {...ev,antes,depois:saldo};
+  });
+
   let html=`<div style="background:#f0fdf4;border:2px solid #86efac;border-radius:14px;padding:14px;margin-bottom:12px">
     <div style="display:flex;justify-content:space-between;font-size:.82rem;padding:4px 0;border-bottom:1px solid #bbf7d0">
       <span>✅ Total entradas</span><b style="color:#16a34a">${fmt(totalEnt)}</b>
@@ -3405,27 +3414,28 @@ function _renderRelCaixa(){
       <span>💰 Saldo no caixa</span><b style="color:#16a34a">${fmt(caixa)}</b>
     </div>
   </div>`;
-  if(entradas.length){
-    html+=`<div style="font-size:.7rem;font-weight:800;color:#166534;text-transform:uppercase;letter-spacing:.04em;margin:10px 0 6px">✅ Entradas (${entradas.length})</div>`;
-    entradas.forEach(e=>{
-      html+=`<div style="display:flex;justify-content:space-between;align-items:center;background:#fff;border:1.5px solid #bbf7d0;border-radius:10px;padding:10px 12px;margin-bottom:6px">
-        <div style="flex:1;min-width:0"><div style="font-size:.8rem;font-weight:700;color:#1e293b">${e.desc}</div><div style="font-size:.65rem;color:#94a3b8">${e.data}</div></div>
-        <span style="font-size:.88rem;font-weight:800;color:#16a34a;flex-shrink:0;margin-left:8px">+${fmt(e.valor)}</span>
+
+  if(!comSaldo.length){
+    html+=`<div style="background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:10px;padding:12px;text-align:center;font-size:.8rem;color:#94a3b8">Nenhuma movimentação registrada</div>`;
+  } else {
+    html+=`<div style="font-size:.7rem;font-weight:800;color:#475569;text-transform:uppercase;letter-spacing:.04em;margin:10px 0 6px">📋 EXTRATO (${comSaldo.length})</div>`;
+    [...comSaldo].reverse().forEach(ev=>{
+      const ent=ev.tipo==='entrada';
+      const cor=ent?'#16a34a':'#dc2626';
+      const borda=ent?'#bbf7d0':'#fecaca';
+      const icone=ent?'✅':'🔴';
+      const sinal=ent?'+':'-';
+      html+=`<div style="background:#fff;border:1.5px solid ${borda};border-radius:10px;padding:10px 12px;margin-bottom:6px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start">
+          <div style="flex:1;min-width:0">
+            <div style="font-size:.8rem;font-weight:700;color:#1e293b">${icone} ${ev.desc}</div>
+            <div style="font-size:.65rem;color:#94a3b8;margin-top:2px">${ev.data}</div>
+            <div style="font-size:.68rem;color:#64748b;margin-top:3px">era <b>${fmt(ev.antes)}</b> → ficou <b style="color:${cor}">${fmt(ev.depois)}</b></div>
+          </div>
+          <span style="font-size:.88rem;font-weight:800;color:${cor};flex-shrink:0;margin-left:8px">${sinal}${fmt(ev.valor)}</span>
+        </div>
       </div>`;
     });
-  } else {
-    html+=`<div style="background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:10px;padding:12px;text-align:center;font-size:.8rem;color:#94a3b8;margin-bottom:8px">Sem entradas registradas</div>`;
-  }
-  if(saidas.length){
-    html+=`<div style="font-size:.7rem;font-weight:800;color:#991b1b;text-transform:uppercase;letter-spacing:.04em;margin:10px 0 6px">🔴 Saídas (${saidas.length})</div>`;
-    saidas.forEach(e=>{
-      html+=`<div style="display:flex;justify-content:space-between;align-items:center;background:#fff;border:1.5px solid #fecaca;border-radius:10px;padding:10px 12px;margin-bottom:6px">
-        <div style="flex:1;min-width:0"><div style="font-size:.8rem;font-weight:700;color:#1e293b">${e.desc}</div><div style="font-size:.65rem;color:#94a3b8">${e.data}</div></div>
-        <span style="font-size:.88rem;font-weight:800;color:#dc2626;flex-shrink:0;margin-left:8px">-${fmt(e.valor)}</span>
-      </div>`;
-    });
-  } else {
-    html+=`<div style="background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:10px;padding:12px;text-align:center;font-size:.8rem;color:#94a3b8">Sem saídas registradas</div>`;
   }
   el.innerHTML=html;
 }
@@ -3790,7 +3800,7 @@ function confirmarPagFornRapido(origem){
   if(valor>resto) return alert(`Valor máximo: ${fmt(resto)}`);
   c.pago += valor;
   c.pagamentos = c.pagamentos||[];
-  c.pagamentos.push({valor, origem, data:hoje()});
+  c.pagamentos.push({id:Date.now(), valor, origem, data:hoje()});
   if(origem==='caixa'){ D.recebido -= valor; D.saidasCaixa = (D.saidasCaixa||0) + valor; }
   _fornRapidoIdx = null;
   fecharMod('modPagarForn');
@@ -3863,7 +3873,7 @@ function confirmarPagamento(origem){
   if(valor>resto) return alert(`Valor máximo permitido: ${fmt(resto)}`);
   c.pago+=valor;
   c.pagamentos=c.pagamentos||[];
-  c.pagamentos.push({valor,origem,data:hoje()});
+  c.pagamentos.push({id:Date.now(), valor, origem, data:hoje()});
   if(origem==='caixa'){ D.recebido -= valor; D.saidasCaixa = (D.saidasCaixa||0) + valor; }
   fecharMod('modPagar');
   save();

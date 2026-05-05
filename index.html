@@ -3400,17 +3400,36 @@ function _coletarMovCaixa(){
 
 function _renderRelCaixa(){
   const el=document.getElementById('relCaixa'); if(!el) return;
-  const eventos=_coletarMovCaixa(); // crescente
+  const eventos=_coletarMovCaixa(); // crescente (mais antigo primeiro)
+
+  // Adiciona ajuste manual como evento especial, se existir
+  if(D.caixaManualOverride!=null){
+    eventos.push({
+      ts: D.caixaManualOverrideTs||parseDt(D.caixaManualOverrideData||''),
+      tipo:'ajuste',
+      desc:'✏️ Ajuste manual do caixa',
+      valor: D.caixaManualOverride,
+      data: D.caixaManualOverrideData||''
+    });
+    eventos.sort((a,b)=>a.ts-b.ts);
+  }
+
   const totalEnt=eventos.filter(e=>e.tipo==='entrada').reduce((s,e)=>s+e.valor,0);
   const totalSai=eventos.filter(e=>e.tipo==='saida').reduce((s,e)=>s+e.valor,0);
-  const caixa=D.recebido||0;
+  const caixaAtual=D.recebido||0;
 
-  // Calcula saldo antes/depois para cada evento
-  let saldo=0;
-  const comSaldo=eventos.map(ev=>{
-    const antes=saldo;
-    saldo+=ev.tipo==='entrada'?ev.valor:-ev.valor;
-    return {...ev,antes,depois:saldo};
+  // ✅ CALCULA DE TRÁS PARA FRENTE ancorando no saldo real atual
+  // Isso garante que "ficou" no evento mais recente = D.recebido exato
+  let saldo=caixaAtual;
+  const comSaldo=[];
+  [...eventos].reverse().forEach(ev=>{
+    const depois=saldo;
+    let antes;
+    if(ev.tipo==='entrada')      antes=saldo-ev.valor;
+    else if(ev.tipo==='saida')   antes=saldo+ev.valor;
+    else                         antes=saldo; // ajuste manual: não altera o cálculo retroativo
+    comSaldo.unshift({...ev,antes,depois});
+    if(ev.tipo!=='ajuste') saldo=antes;
   });
 
   let html=`<div style="background:#f0fdf4;border:2px solid #86efac;border-radius:14px;padding:14px;margin-bottom:12px">
@@ -3421,7 +3440,7 @@ function _renderRelCaixa(){
       <span>🔴 Total saídas</span><b style="color:#dc2626">${fmt(totalSai)}</b>
     </div>
     <div style="display:flex;justify-content:space-between;font-size:.95rem;font-weight:800;padding:6px 0 0">
-      <span>💰 Saldo no caixa</span><b style="color:#16a34a">${fmt(caixa)}</b>
+      <span>💰 Saldo no caixa</span><b style="color:#16a34a">${fmt(caixaAtual)}</b>
     </div>
   </div>`;
 
@@ -3430,11 +3449,12 @@ function _renderRelCaixa(){
   } else {
     html+=`<div style="font-size:.7rem;font-weight:800;color:#475569;text-transform:uppercase;letter-spacing:.04em;margin:10px 0 6px">📋 EXTRATO (${comSaldo.length})</div>`;
     [...comSaldo].reverse().forEach(ev=>{
+      const isAjuste=ev.tipo==='ajuste';
       const ent=ev.tipo==='entrada';
-      const cor=ent?'#16a34a':'#dc2626';
-      const borda=ent?'#bbf7d0':'#fecaca';
-      const icone=ent?'✅':'🔴';
-      const sinal=ent?'+':'-';
+      const cor=isAjuste?'#f59e0b':ent?'#16a34a':'#dc2626';
+      const borda=isAjuste?'#fed7aa':ent?'#bbf7d0':'#fecaca';
+      const icone=isAjuste?'✏️':ent?'✅':'🔴';
+      const sinal=isAjuste?'':ent?'+':'-';
       html+=`<div style="background:#fff;border:1.5px solid ${borda};border-radius:10px;padding:10px 12px;margin-bottom:6px">
         <div style="display:flex;justify-content:space-between;align-items:flex-start">
           <div style="flex:1;min-width:0">
@@ -3442,7 +3462,7 @@ function _renderRelCaixa(){
             <div style="font-size:.65rem;color:#94a3b8;margin-top:2px">${ev.data}</div>
             <div style="font-size:.68rem;color:#64748b;margin-top:3px">era <b>${fmt(ev.antes)}</b> → ficou <b style="color:${cor}">${fmt(ev.depois)}</b></div>
           </div>
-          <span style="font-size:.88rem;font-weight:800;color:${cor};flex-shrink:0;margin-left:8px">${sinal}${fmt(ev.valor)}</span>
+          <span style="font-size:.88rem;font-weight:800;color:${cor};flex-shrink:0;margin-left:8px">${sinal}${isAjuste?fmt(ev.valor):fmt(ev.valor)}</span>
         </div>
       </div>`;
     });

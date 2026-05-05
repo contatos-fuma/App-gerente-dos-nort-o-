@@ -3905,6 +3905,7 @@ function confirmarPagFornRapido(origem){
   c.pagamentos = c.pagamentos||[];
   c.pagamentos.push({id:Date.now(), valor, origem, data:hoje()});
   if(origem==='caixa'){ D.recebido -= valor; D.saidasCaixa = (D.saidasCaixa||0) + valor; }
+  D.fornecOverride=null;
   _fornRapidoIdx = null;
   fecharMod('modPagarForn');
   save();
@@ -3965,6 +3966,7 @@ function confirmarPagamento(origem){
     c.pago+=valor;
     c.pagamentos=c.pagamentos||[];
     c.pagamentos.push({valor,origem:'credito',data:hoje()});
+    D.fornecOverride=null;
     fecharMod('modPagar');
     save();
     const sobra=resto-valor;
@@ -3978,6 +3980,7 @@ function confirmarPagamento(origem){
   c.pagamentos=c.pagamentos||[];
   c.pagamentos.push({id:Date.now(), valor, origem, data:hoje()});
   if(origem==='caixa'){ D.recebido -= valor; D.saidasCaixa = (D.saidasCaixa||0) + valor; }
+  D.fornecOverride=null;
   fecharMod('modPagar');
   save();
   alert(`✅ ${fmt(valor)} pago (${origem==='caixa'?'do Caixa':'Externo'})`);
@@ -4312,7 +4315,9 @@ function addProduto(){
   D.estoque.push({id,forn:f,nome:n,qtd:q,custo:c});
   const fi=D.fornecedores.findIndex(x=>x.nome===f);
   if(fi>=0){
-    
+    // Limpa o override manual do card de dívida para mostrar valor calculado real
+    D.fornecOverride = null;
+
     const adiantos = D.fornecedores[fi].adiantamentos||[];
     const totalAdiant = adiantos.reduce((s,a)=>s+(a.valor-(a.usado||0)),0);
     let pagoAuto = 0;
@@ -5251,18 +5256,22 @@ function resetSeletivo(tipo){
     // Zera histórico dos funcionários
     D.clientes.forEach(c=>{c.historico=[];c.saldo=0;});
     // Remove adiantamentos e pagamentos de CAIXA nos fornecedores (aparecem no extrato)
+    // Recalcula ct.pago para manter consistência com os pagamentos externos restantes
     (D.fornecedores||[]).forEach(f=>{
       f.adiantamentos=(f.adiantamentos||[]).filter(a=>a.origem!=='caixa');
-      (f.contas||[]).forEach(ct=>{ ct.pagamentos=(ct.pagamentos||[]).filter(p=>p.origem!=='caixa'); });
+      (f.contas||[]).forEach(ct=>{
+        ct.pagamentos=(ct.pagamentos||[]).filter(p=>p.origem!=='caixa');
+        ct.pago=ct.pagamentos.reduce((s,p)=>s+(p.valor||0),0);
+      });
     });
-    // Zera log de ajustes manuais do caixa
-    D.logAjustesCaixa=[];
+    // Zera log de ajustes manuais do caixa e override de dívida
+    D.logAjustesCaixa=[]; D.fornecOverride=null;
     D.recebido=0; D.caixaManualOverride=null; D.caixaManualOverrideTs=null;
     D.caixaExtra=0; D.saidasCaixa=0; D.resetTs=Date.now();
   }
   else if(tipo==='caixa'){ D.recebido=0; D.caixaManualOverride=null; D.caixaManualOverrideTs=null; D.caixaExtra=0; D.saidasCaixa=0; }
   else if(tipo==='estoque'){ D.estoque=[]; D.custoOverride=null; }
-  else if(tipo==='clientes'){ D.clientes=[]; D.recebido=0; D.receberOverride=null; D.caixaManualOverride=null; D.caixaManualOverrideTs=null; D.caixaExtra=0; D.saidasCaixa=0; D.logAjustesCaixa=[]; D.resetTs=Date.now(); _relIdx=null; }
+  else if(tipo==='clientes'){ D.clientes=[]; D.recebido=0; D.receberOverride=null; D.caixaManualOverride=null; D.caixaManualOverrideTs=null; D.caixaExtra=0; D.saidasCaixa=0; D.logAjustesCaixa=[]; D.fornecOverride=null; D.resetTs=Date.now(); _relIdx=null; }
   else if(tipo==='fornecedores'){ D.fornecedores=[]; D.fornecOverride=null; fornAberto={}; _pagFi=null;_pagCi=null;_fornRapidoIdx=null; }
   else if(tipo==='tudo'){ D={estoque:[],clientes:[],fornecedores:[],recebido:0,saidasCaixa:0,logAjustesCaixa:[],resetTs:Date.now()}; fornAberto={}; _relIdx=null; _pagFi=null;_pagCi=null;_fornRapidoIdx=null; }
   fecharMod('modReset'); save(); render(); alert('✅ Concluído!');

@@ -889,7 +889,7 @@ tr:last-child td{border-bottom:none}
     <div style="display:flex;flex-direction:column;gap:10px">
       <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:12px">
         <b style="font-size:.85rem">📊 Histórico de Entregas</b>
-        <p style="font-size:.72rem;color:#64748b;margin:4px 0 10px">Apaga entregas e pagamentos, zera saldos. Mantém os funcionários.</p>
+        <p style="font-size:.72rem;color:#64748b;margin:4px 0 10px">Zera entregas, pagamentos, adiantamentos do caixa e extrato. Mantém os funcionários.</p>
         <button onclick="resetSeletivo('historico')" style="width:100%;padding:11px;background:#f59e0b;color:#1e293b;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:.8rem">🗑️ LIMPAR HISTÓRICO</button>
       </div>
       <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:12px">
@@ -5244,16 +5244,28 @@ function delForn(i){
 }
 function abrirReset(){ document.getElementById('modReset').classList.add('on'); }
 function resetSeletivo(tipo){
-  const msgs={historico:'Limpar todo o histórico de entregas?\n\nFuncionários serão mantidos mas saldos zerados.',caixa:'Zerar o caixa?',estoque:'Limpar todo o estoque?',clientes:'Apagar TODOS os funcionários?\n\nIrreversível!',fornecedores:'Apagar TODOS os fornecedores e notas?\n\nIrreversível!',tudo:'⚠️ APAGAR TUDO?\n\nEstoque, funcionários, fornecedores e caixa.\n\nIrreversível!'};
+  const msgs={historico:'Limpar todo o histórico?\n\nZera entregas, pagamentos, adiantamentos do caixa e extrato.\nFuncionários serão mantidos.',caixa:'Zerar o caixa?',estoque:'Limpar todo o estoque?',clientes:'Apagar TODOS os funcionários?\n\nIrreversível!',fornecedores:'Apagar TODOS os fornecedores e notas?\n\nIrreversível!',tudo:'⚠️ APAGAR TUDO?\n\nEstoque, funcionários, fornecedores e caixa.\n\nIrreversível!'};
   if(!confirm(msgs[tipo])) return;
   if(prompt('Digite  CONFIRMAR  para prosseguir:')!=='CONFIRMAR') return alert('❌ Cancelado.');
-  if(tipo==='historico'){ D.clientes.forEach(c=>{c.historico=[];c.saldo=0;}); D.recebido=0; D.caixaManualOverride=null; D.caixaManualOverrideTs=null; D.caixaExtra=0; D.saidasCaixa=0; D.resetTs=Date.now(); }
+  if(tipo==='historico'){
+    // Zera histórico dos funcionários
+    D.clientes.forEach(c=>{c.historico=[];c.saldo=0;});
+    // Remove adiantamentos e pagamentos de CAIXA nos fornecedores (aparecem no extrato)
+    (D.fornecedores||[]).forEach(f=>{
+      f.adiantamentos=(f.adiantamentos||[]).filter(a=>a.origem!=='caixa');
+      (f.contas||[]).forEach(ct=>{ ct.pagamentos=(ct.pagamentos||[]).filter(p=>p.origem!=='caixa'); });
+    });
+    // Zera log de ajustes manuais do caixa
+    D.logAjustesCaixa=[];
+    D.recebido=0; D.caixaManualOverride=null; D.caixaManualOverrideTs=null;
+    D.caixaExtra=0; D.saidasCaixa=0; D.resetTs=Date.now();
+  }
   else if(tipo==='caixa'){ D.recebido=0; D.caixaManualOverride=null; D.caixaManualOverrideTs=null; D.caixaExtra=0; D.saidasCaixa=0; }
   else if(tipo==='estoque'){ D.estoque=[]; D.custoOverride=null; }
-  else if(tipo==='clientes'){ D.clientes=[]; D.recebido=0; D.receberOverride=null; D.caixaManualOverride=null; D.caixaManualOverrideTs=null; D.caixaExtra=0; D.saidasCaixa=0; D.resetTs=Date.now(); _relIdx=null; }
+  else if(tipo==='clientes'){ D.clientes=[]; D.recebido=0; D.receberOverride=null; D.caixaManualOverride=null; D.caixaManualOverrideTs=null; D.caixaExtra=0; D.saidasCaixa=0; D.logAjustesCaixa=[]; D.resetTs=Date.now(); _relIdx=null; }
   else if(tipo==='fornecedores'){ D.fornecedores=[]; D.fornecOverride=null; fornAberto={}; _pagFi=null;_pagCi=null;_fornRapidoIdx=null; }
-  else if(tipo==='tudo'){ D={estoque:[],clientes:[],fornecedores:[],recebido:0,saidasCaixa:0,resetTs:Date.now()}; fornAberto={}; _relIdx=null; _pagFi=null;_pagCi=null;_fornRapidoIdx=null; }
-  fecharMod('modReset'); save(); alert('✅ Concluído!');
+  else if(tipo==='tudo'){ D={estoque:[],clientes:[],fornecedores:[],recebido:0,saidasCaixa:0,logAjustesCaixa:[],resetTs:Date.now()}; fornAberto={}; _relIdx=null; _pagFi=null;_pagCi=null;_fornRapidoIdx=null; }
+  fecharMod('modReset'); save(); render(); alert('✅ Concluído!');
 }
 
 function salvarNumeros(){

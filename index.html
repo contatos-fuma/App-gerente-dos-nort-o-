@@ -534,9 +534,33 @@ tr:last-child td{border-bottom:none}
     <label>💰 Valor recebido (R$)</label>
     <input id="vAcertoValor" type="number" placeholder="0,00" inputmode="decimal"
       oninput="_sincronizarValorManualAcerto()"
-      style="font-size:1.2rem;font-weight:700;text-align:center;margin-bottom:18px;border:2px solid #10b981;border-radius:12px;padding:14px">
+      style="font-size:1.2rem;font-weight:700;text-align:center;margin-bottom:12px;border:2px solid #10b981;border-radius:12px;padding:14px">
 
-    <button onclick="_confirmarReceberAcerto()"
+    <!-- Comprovante (opcional) -->
+    <details id="detalhesComprovante" style="margin-bottom:14px">
+      <summary style="font-size:.75rem;font-weight:700;color:#475569;cursor:pointer;padding:8px 10px;background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0;list-style:none;display:flex;align-items:center;gap:6px">📎 Comprovante — data, hora e foto (opcional)</summary>
+      <div style="padding:10px 0 0">
+        <div style="display:flex;gap:8px;margin-bottom:8px">
+          <div style="flex:1">
+            <label style="font-size:.65rem;color:#64748b;font-weight:700;display:block;margin-bottom:3px">📅 Data do PIX</label>
+            <input id="acertoDataPix" type="date" style="width:100%;padding:8px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:.85rem;box-sizing:border-box">
+          </div>
+          <div style="flex:1">
+            <label style="font-size:.65rem;color:#64748b;font-weight:700;display:block;margin-bottom:3px">🕐 Hora do PIX</label>
+            <input id="acertoHoraPix" type="time" style="width:100%;padding:8px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:.85rem;box-sizing:border-box">
+          </div>
+        </div>
+        <label style="font-size:.65rem;color:#64748b;font-weight:700;display:block;margin-bottom:3px">📷 Foto do comprovante</label>
+        <input id="acertoFotoInput" type="file" accept="image/*" capture="environment" onchange="_previewAcertoFoto(this)"
+          style="width:100%;padding:7px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:.8rem;margin-bottom:6px;box-sizing:border-box">
+        <div id="acertoFotoPreview" style="display:none;text-align:center">
+          <img id="acertoFotoImg" style="max-width:100%;max-height:150px;border-radius:8px;border:1px solid #e2e8f0;margin-bottom:4px">
+          <button onclick="_limparAcertoFoto()" style="display:block;width:100%;padding:6px;background:#fef2f2;color:#dc2626;border:1px solid #fecaca;border-radius:6px;font-size:.75rem;cursor:pointer;font-weight:700">🗑️ Remover foto</button>
+        </div>
+      </div>
+    </details>
+
+    <button id="btnGravarAcerto" onclick="_confirmarReceberAcerto()"
       style="width:100%;padding:16px;background:#16a34a;color:#fff;border:none;border-radius:14px;font-weight:800;font-size:1rem;cursor:pointer;box-shadow:0 4px 12px rgba(22,163,74,.3)">
       ✅ GRAVAR ACERTO
     </button>
@@ -3059,7 +3083,7 @@ function _renderRelFunc(){
 
   const hist = c.historico || [];
   const saidas   = hist.filter(h=>h.tipo==='saida').sort((a,b)=>parseDt(a.data)-parseDt(b.data));
-  const entradas = hist.filter(h=>h.tipo==='entrada').sort((a,b)=>parseDt(a.data)-parseDt(b.data));
+  const entradas = hist.filter(h=>h.tipo==='entrada').sort((a,b)=>tsEntrada(a)-tsEntrada(b));
 
   // Quanto foi pago por item via itensPix
   const pagoPorItem = {};
@@ -4351,6 +4375,15 @@ function abrirReceberPix(){
   document.getElementById('modAcertoNome').innerText = c.nome;
   document.getElementById('modAcertoSaldo').innerText = fmt(c.saldo);
   document.getElementById('vAcertoValor').value = '';
+  // Inicializa campos do comprovante com data/hora atual
+  const _agora = new Date();
+  const _dateEl = document.getElementById('acertoDataPix');
+  const _timeEl = document.getElementById('acertoHoraPix');
+  if(_dateEl) _dateEl.value = _agora.toISOString().slice(0,10);
+  if(_timeEl) _timeEl.value = _agora.toTimeString().slice(0,5);
+  _limparAcertoFoto();
+  const _det = document.getElementById('detalhesComprovante');
+  if(_det) _det.removeAttribute('open');
   _renderItensAcerto();
   document.getElementById('modReceberAcerto').classList.add('on');
 }
@@ -4489,7 +4522,7 @@ function _sincronizarValorManualAcerto(){
   }
 }
 
-function _confirmarReceberAcerto(){
+async function _confirmarReceberAcerto(){
   if(_acertoFuncIdx === null) return;
   const c = D.clientes[_acertoFuncIdx];
 
@@ -4506,6 +4539,22 @@ function _confirmarReceberAcerto(){
 
   const valor = _parseValor(document.getElementById('vAcertoValor').value);
   if(!(valor > 0)) return alert('Digite o valor do acerto.');
+
+  // Comprovante: data/hora e foto
+  let timestampPix = null;
+  const dateVal = (document.getElementById('acertoDataPix')||{}).value||'';
+  const timeVal = (document.getElementById('acertoHoraPix')||{}).value||'';
+  if(dateVal && timeVal){
+    try{ timestampPix = new Date(dateVal+'T'+timeVal+':00').toISOString(); }catch(e){}
+  }
+  let urlFotoAcerto = null;
+  if(_acertoFotoBase64){
+    const btn = document.getElementById('btnGravarAcerto');
+    if(btn){ btn.disabled=true; btn.innerText='⏳ Enviando foto...'; }
+    try{ urlFotoAcerto = await uploadImagemSupabase(_acertoFotoBase64); }catch(e){}
+    if(btn){ btn.disabled=false; btn.innerText='✅ GRAVAR ACERTO'; }
+  }
+
   const itensSel = Object.entries(_itensSelecionadosAcerto);
   const itensPix = itensSel.length > 0
     ? itensSel.map(([id,v])=>({ saidaId: id, valorPago: +(+v).toFixed(2) }))
@@ -4513,7 +4562,9 @@ function _confirmarReceberAcerto(){
   const desc = itensPix
     ? 'Acerto — ' + itensSel.map(([id,v])=>{ const s=(c.historico||[]).find(h=>String(h.id)===String(id)); return (s?s.desc:'Item')+': '+fmt(+v); }).join(', ')
     : 'Acerto recebido';
-  c.historico.push({ id:Date.now(), tipo:'entrada', desc, valor, data:hoje(), itensPix });
+
+  c.historico.push({ id:Date.now(), tipo:'entrada', desc, valor, data:hoje(), itensPix,
+    timestampPix, urlFoto: urlFotoAcerto||null });
   c.saldo = Math.max(0, c.saldo - valor);
   D.recebido += valor;
   fecharMod('modReceberAcerto');
@@ -4525,7 +4576,28 @@ function _confirmarReceberAcerto(){
 
 let _relIdx = null;
 
+let _acertoFotoBase64 = null;
+function _previewAcertoFoto(input){
+  const file = input.files[0]; if(!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    _acertoFotoBase64 = e.target.result;
+    document.getElementById('acertoFotoImg').src = _acertoFotoBase64;
+    document.getElementById('acertoFotoPreview').style.display='block';
+  };
+  reader.readAsDataURL(file);
+}
+function _limparAcertoFoto(){
+  _acertoFotoBase64 = null;
+  const inp = document.getElementById('acertoFotoInput');
+  if(inp) inp.value='';
+  const prev = document.getElementById('acertoFotoPreview');
+  if(prev) prev.style.display='none';
+}
+
 function parseDt(d){ if(!d) return 0; const p=d.split('/'); return p.length===3?new Date(p[2],p[1]-1,p[0]).getTime():0; }
+// Retorna timestamp preciso de uma entrada: usa horário do comprovante quando disponível
+function tsEntrada(h){ return h.timestampPix ? new Date(h.timestampPix).getTime() : (h.id||0); }
 function getMesAno(d){ if(!d) return null; const p=d.split('/'); return p.length===3?p[1]+'/'+p[2]:null; }
 function nomeMes(mm){ const n=['','Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']; return n[+mm]||mm; }
 function labelMesAno(ma){ const[mm,aa]=ma.split('/'); return nomeMes(mm)+'/'+aa; }
@@ -4570,7 +4642,7 @@ function filtrarRelatorio(){
   
   const filtro = h => mesSel==='todos' ? true : getMesAno(h.data)===mesSel;
   const saidas   = hist.filter(h=>h.tipo==='saida'   && filtro(h)).sort((a,b)=>{ const d=parseDt(a.data)-parseDt(b.data); return d!==0?d:(a.id||0)-(b.id||0); });
-  const entradas = hist.filter(h=>h.tipo==='entrada' && filtro(h)).sort((a,b)=>{ const d=parseDt(a.data)-parseDt(b.data); return d!==0?d:(a.id||0)-(b.id||0); });
+  const entradas = hist.filter(h=>h.tipo==='entrada' && filtro(h)).sort((a,b)=>tsEntrada(a)-tsEntrada(b));
   const totalSaidas   = saidas.reduce((s,h)=>s+h.valor,0);
   const totalEntradas = entradas.reduce((s,h)=>s+h.valor,0);
   const saldoMes = totalSaidas - totalEntradas;
@@ -4615,6 +4687,8 @@ function filtrarRelatorio(){
     if(entradas.length){
       entradas.forEach(h=>{
         const nomesInfo = (h.nomeRemetente||h.nomeRecebedor) ? `<small style="color:#64748b;display:block;margin-top:2px">${h.nomeRemetente?'👤 De: '+h.nomeRemetente:''}${h.nomeRemetente&&h.nomeRecebedor?' · ':''}${h.nomeRecebedor?'🏦 Para: '+h.nomeRecebedor:''}</small>` : '';
+        const horaLabel = h.timestampPix ? ' às '+new Date(h.timestampPix).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}) : '';
+        const fotoHtml = h.urlFoto ? `<a href="${h.urlFoto}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:4px;font-size:.68rem;color:#2563eb;text-decoration:none;margin-top:3px">📎 Ver comprovante</a>` : '';
         // Breakdown itens pagos nesse PIX
         let itensBreakdown = '';
         if(h.itensPix && h.itensPix.length){
@@ -4629,7 +4703,7 @@ function filtrarRelatorio(){
         }
         preview+=`<div style="font-size:.78rem;padding:6px 0;border-bottom:1px solid #f1f5f9">
           <div style="display:flex;justify-content:space-between;align-items:center;gap:4px">
-            <span>💚 ${h.desc}<br><small style="color:#94a3b8">${h.data}</small>${nomesInfo}</span>
+            <span>💚 ${h.desc}<br><small style="color:#94a3b8">${h.data}${horaLabel}</small>${nomesInfo}${fotoHtml}</span>
             <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
               <span style="font-weight:700;color:#16a34a">${fmt(h.valor)}</span>
               <button onclick="delPix(${_relIdx},'${h.id||''}',${h.valor})" style="background:#ef4444;color:#fff;border:none;padding:3px 8px;border-radius:5px;font-size:.7rem;cursor:pointer">🗑️</button>

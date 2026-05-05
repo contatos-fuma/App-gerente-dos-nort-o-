@@ -1111,25 +1111,37 @@ tr:last-child td{border-bottom:none}
   <div class="mbox"><div class="modal-handle"></div>
     <button onclick="fecharMod('modBackup')" style="width:100%;padding:11px;background:#f1f5f9;border:none;border-radius:12px;font-weight:700;cursor:pointer;margin-bottom:14px;color:#475569;font-size:.85rem">✕ Fechar</button>
     <h3 style="text-align:center;margin:0 0 4px">💾 BACKUP DOS DADOS</h3>
-    <p style="text-align:center;font-size:.7rem;color:#64748b;margin:0 0 12px">Selecione tudo, copie e cole no WhatsApp ou Notas</p>
 
-    <div style="background:#f0fdf4;border:1px solid #10b981;border-radius:8px;padding:10px;margin-bottom:10px">
-      <div style="font-size:.7rem;font-weight:700;color:#166534;margin-bottom:6px">📋 PASSO A PASSO:</div>
-      <div style="font-size:.72rem;color:#166534;line-height:1.8">
-        1️⃣ Toque na caixa abaixo<br>
-        2️⃣ Segure até aparecer "Selecionar tudo"<br>
-        3️⃣ Copie e cole no WhatsApp ou Notas<br>
-        4️⃣ Para restaurar, use o botão 📥 RESTAURAR
-      </div>
+    <!-- Salvar backup -->
+    <div style="background:#f0fdf4;border:1.5px solid #10b981;border-radius:12px;padding:12px;margin-bottom:10px">
+      <div style="font-size:.7rem;font-weight:800;color:#166534;margin-bottom:8px;text-transform:uppercase;letter-spacing:.04em">📤 Salvar backup</div>
+      <!-- Compartilhar (melhor no celular) -->
+      <button onclick="compartilharBk()" style="width:100%;padding:13px;background:#25d366;color:#fff;border:none;border-radius:10px;font-weight:800;cursor:pointer;font-size:.9rem;margin-bottom:8px">
+        📲 COMPARTILHAR (WhatsApp, Notas...)
+      </button>
+      <!-- Baixar arquivo -->
+      <button onclick="baixarBk()" style="width:100%;padding:12px;background:#2563eb;color:#fff;border:none;border-radius:10px;font-weight:800;cursor:pointer;font-size:.85rem;margin-bottom:8px">
+        💾 BAIXAR ARQUIVO (.json)
+      </button>
+      <!-- Copiar texto (fallback) -->
+      <button onclick="tentarCopiar()" style="width:100%;padding:11px;background:#f1f5f9;color:#475569;border:1.5px solid #e2e8f0;border-radius:10px;font-weight:700;cursor:pointer;font-size:.8rem;margin-bottom:6px">
+        📋 Copiar texto manualmente
+      </button>
+      <textarea id="bkTexto" readonly onclick="this.select()" style="width:100%;height:80px;font-family:monospace;font-size:.6rem;padding:8px;border:1.5px solid #e2e8f0;border-radius:8px;background:#f8fafc;resize:none;color:#64748b"></textarea>
     </div>
 
-    <textarea id="bkTexto" readonly onclick="this.select()" style="width:100%;height:130px;font-family:monospace;font-size:.65rem;padding:8px;border:2px solid #10b981;border-radius:8px;background:#fff;resize:none;margin-bottom:8px"></textarea>
-    <button onclick="tentarCopiar()" style="width:100%;padding:13px;background:#10b981;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:.9rem;margin-bottom:6px">📋 COPIAR AUTOMATICAMENTE</button>
-
-    <div style="border-top:1px solid #e2e8f0;margin:12px 0 8px"></div>
-    <div style="font-size:.7rem;font-weight:700;color:#dc2626;margin-bottom:6px">📥 RESTAURAR — Cole o backup aqui:</div>
-    <textarea id="bkRestaurar" placeholder="Cole o texto do backup aqui e toque em Restaurar..." style="width:100%;height:90px;font-family:monospace;font-size:.65rem;padding:8px;border:2px solid #f59e0b;border-radius:8px;background:#fffbeb;resize:none;margin-bottom:8px"></textarea>
-    <button onclick="restaurarDoBk()" style="width:100%;padding:13px;background:#f59e0b;color:#1e293b;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:.9rem">⚠️ RESTAURAR DADOS</button>
+    <!-- Restaurar backup -->
+    <div style="background:#fffbeb;border:1.5px solid #f59e0b;border-radius:12px;padding:12px">
+      <div style="font-size:.7rem;font-weight:800;color:#92400e;margin-bottom:8px;text-transform:uppercase;letter-spacing:.04em">📥 Restaurar backup</div>
+      <!-- Importar arquivo -->
+      <button onclick="document.getElementById('bkArquivo').click()" style="width:100%;padding:13px;background:#7c3aed;color:#fff;border:none;border-radius:10px;font-weight:800;cursor:pointer;font-size:.9rem;margin-bottom:8px">
+        📂 IMPORTAR ARQUIVO (.json)
+      </button>
+      <input id="bkArquivo" type="file" accept=".json,application/json,text/plain" onchange="restaurarDeArquivo(this)" style="display:none">
+      <div style="text-align:center;font-size:.65rem;color:#92400e;margin-bottom:8px">— ou cole o texto abaixo —</div>
+      <textarea id="bkRestaurar" placeholder="Cole o texto do backup aqui e toque em Restaurar..." style="width:100%;height:80px;font-family:monospace;font-size:.65rem;padding:8px;border:1.5px solid #f59e0b;border-radius:8px;background:#fff;resize:none;margin-bottom:8px"></textarea>
+      <button onclick="restaurarDoBk()" style="width:100%;padding:13px;background:#f59e0b;color:#1e293b;border:none;border-radius:10px;font-weight:800;cursor:pointer;font-size:.9rem">⚠️ RESTAURAR DADOS</button>
+    </div>
   </div>
 </div>
 
@@ -4123,45 +4135,88 @@ function cobrarTodos(){
   document.getElementById('modCobranca').classList.add('on');
 }
 
+function _bkJson(){ return JSON.stringify(D); }
+
 function abrirBackup(){
-  document.getElementById('bkTexto').value = JSON.stringify(D);
+  document.getElementById('bkTexto').value = _bkJson();
   document.getElementById('bkRestaurar').value = '';
   document.getElementById('modBackup').classList.add('on');
-  setTimeout(()=>{ document.getElementById('bkTexto').select(); }, 200);
+}
+
+async function compartilharBk(){
+  const txt = _bkJson();
+  const nome = (D.nomeGerente||_usuario||'gerente').replace(/[^a-z0-9]/gi,'_');
+  const arquivo = new File([txt], `backup_${nome}_${hoje().replace(/\//g,'-')}.json`, {type:'application/json'});
+  if(navigator.share){
+    try{
+      if(navigator.canShare && navigator.canShare({files:[arquivo]})){
+        await navigator.share({title:'Backup Gestão Inteligente', files:[arquivo]});
+        return;
+      }
+      // Tenta só texto se arquivo não suportado
+      await navigator.share({title:'Backup Gestão Inteligente', text: txt});
+      return;
+    }catch(e){ if(e.name==='AbortError') return; }
+  }
+  // Fallback: baixar arquivo
+  baixarBk();
+}
+
+function baixarBk(){
+  const txt = _bkJson();
+  const nome = (D.nomeGerente||_usuario||'gerente').replace(/[^a-z0-9]/gi,'_');
+  const blob = new Blob([txt], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `backup_${nome}_${hoje().replace(/\//g,'-')}.json`;
+  document.body.appendChild(a); a.click();
+  setTimeout(()=>{ document.body.removeChild(a); URL.revokeObjectURL(url); }, 1000);
 }
 
 function tentarCopiar(){
+  const txt = _bkJson();
   const el = document.getElementById('bkTexto');
-  el.select();
-  el.setSelectionRange(0, 99999);
-  try {
-    document.execCommand('copy');
-    alert('✅ Backup copiado!\nAgora cole no WhatsApp ou Notas para guardar.');
-  } catch(e) {
-    if(navigator.clipboard && navigator.clipboard.writeText){
-      navigator.clipboard.writeText(el.value)
-        .then(()=>alert('✅ Backup copiado!\nCole no WhatsApp ou Notas.'))
-        .catch(()=>alert('Toque na caixa verde, segure e selecione tudo para copiar manualmente.'));
-    } else {
-      alert('Toque na caixa verde, segure e selecione tudo para copiar manualmente.');
-    }
+  el.select(); el.setSelectionRange(0, 99999);
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(txt)
+      .then(()=>alert('✅ Texto copiado! Cole no WhatsApp ou Notas.'))
+      .catch(()=>{ try{ document.execCommand('copy'); alert('✅ Copiado!'); }catch(e){ alert('Toque na caixa cinza acima, segure e escolha "Selecionar tudo" → Copiar.'); } });
+  } else {
+    try{ document.execCommand('copy'); alert('✅ Copiado!'); }
+    catch(e){ alert('Toque na caixa cinza acima, segure e escolha "Selecionar tudo" → Copiar.'); }
+  }
+}
+
+function _aplicarBackup(txt){
+  if(!confirm('⚠️ Isso vai SUBSTITUIR todos os dados atuais. Confirma?')) return false;
+  try{
+    const novo = JSON.parse(txt);
+    if(typeof novo !== 'object' || Array.isArray(novo)) throw new Error('formato');
+    D = Object.assign({estoque:[],clientes:[],fornecedores:[],recebido:0}, novo);
+    D.resetTs = Date.now();
+    save();
+    fecharMod('modBackup');
+    setTimeout(()=>{ render(); alert('✅ Dados restaurados com sucesso!'); }, 200);
+    return true;
+  }catch(e){
+    alert('❌ Arquivo inválido.\nVerifique se é um backup gerado por este app.');
+    return false;
   }
 }
 
 function restaurarDoBk(){
   const txt = document.getElementById('bkRestaurar').value.trim();
   if(!txt) return alert('Cole o texto do backup primeiro');
-  if(!confirm('⚠️ Isso vai SUBSTITUIR todos os dados atuais. Confirma?')) return;
-  try{
-    const novo = JSON.parse(txt);
-    D = Object.assign({estoque:[],clientes:[],fornecedores:[],recebido:0}, novo);
-    D.resetTs = Date.now();
-    save();
-    fecharMod('modBackup');
-    alert('✅ Dados restaurados com sucesso!');
-  } catch(e){
-    alert('❌ Texto inválido. Verifique se copiou o backup completo.');
-  }
+  _aplicarBackup(txt);
+}
+
+function restaurarDeArquivo(input){
+  const file = input.files[0]; if(!file) return;
+  const reader = new FileReader();
+  reader.onload = e => { _aplicarBackup(e.target.result); };
+  reader.onerror = () => alert('❌ Erro ao ler o arquivo.');
+  reader.readAsText(file);
+  input.value = '';
 }
 
 function copiarBackup(){ abrirBackup(); }

@@ -3454,15 +3454,18 @@ function _renderRelCaixa(){
       const cor=isAjuste?'#f59e0b':ent?'#16a34a':'#dc2626';
       const borda=isAjuste?'#fed7aa':ent?'#bbf7d0':'#fecaca';
       const icone=isAjuste?'✏️':ent?'✅':'🔴';
-      const sinal=isAjuste?'':ent?'+':'-';
+      const sinal=ent?'+':'-';
+      const subLinha=isAjuste
+        ?`<div style="font-size:.68rem;color:#92400e;margin-top:3px">caixa definido para <b style="color:#f59e0b">${fmt(ev.depois)}</b></div>`
+        :`<div style="font-size:.68rem;color:#64748b;margin-top:3px">era <b>${fmt(ev.antes)}</b> → ficou <b style="color:${cor}">${fmt(ev.depois)}</b></div>`;
       html+=`<div style="background:#fff;border:1.5px solid ${borda};border-radius:10px;padding:10px 12px;margin-bottom:6px">
         <div style="display:flex;justify-content:space-between;align-items:flex-start">
           <div style="flex:1;min-width:0">
             <div style="font-size:.8rem;font-weight:700;color:#1e293b">${icone} ${ev.desc}</div>
             <div style="font-size:.65rem;color:#94a3b8;margin-top:2px">${ev.data}</div>
-            <div style="font-size:.68rem;color:#64748b;margin-top:3px">era <b>${fmt(ev.antes)}</b> → ficou <b style="color:${cor}">${fmt(ev.depois)}</b></div>
+            ${subLinha}
           </div>
-          <span style="font-size:.88rem;font-weight:800;color:${cor};flex-shrink:0;margin-left:8px">${sinal}${isAjuste?fmt(ev.valor):fmt(ev.valor)}</span>
+          ${isAjuste?'':`<span style="font-size:.88rem;font-weight:800;color:${cor};flex-shrink:0;margin-left:8px">${sinal}${fmt(ev.valor)}</span>`}
         </div>
       </div>`;
     });

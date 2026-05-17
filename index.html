@@ -962,7 +962,15 @@ tr:last-child td{border-bottom:none}
       </div>
     </div>
     <button id="btnWpp" style="background:var(--wpp);color:#fff;border:none;padding:12px;border-radius:8px;font-weight:700;width:100%;cursor:pointer;margin-bottom:10px">📲 ENVIAR WHATSAPP</button>
-    <div id="modFuncCorpo" style="max-height:350px;overflow-y:auto"></div>
+    <!-- Pagamento Separado -->
+    <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:10px;margin-bottom:10px">
+      <div style="font-size:.65rem;font-weight:700;color:#166534;text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">💵 Registrar Pagamento Separado</div>
+      <div style="display:flex;gap:6px;align-items:center">
+        <input id="inpPagSep" type="number" placeholder="Valor (R$)" min="0" step="0.01" style="flex:1;padding:8px;border:1px solid #86efac;border-radius:6px;font-size:.85rem;background:#fff">
+        <button onclick="registrarPagamentoSep()" style="background:#16a34a;color:#fff;border:none;padding:8px 14px;border-radius:6px;font-weight:700;cursor:pointer;font-size:.8rem;white-space:nowrap">✅ Registrar</button>
+      </div>
+    </div>
+    <div id="modFuncCorpo" style="max-height:310px;overflow-y:auto"></div>
   </div>
 </div>
 
@@ -4693,6 +4701,23 @@ function abrirRelatorio(i){
   document.getElementById('modFunc').classList.add('on');
 }
 
+function registrarPagamentoSep(){
+  if(_relIdx===null) return;
+  const c = D.clientes[_relIdx];
+  const inp = document.getElementById('inpPagSep');
+  const valor = parseFloat(inp.value);
+  if(!valor || valor <= 0) return alert('❌ Informe um valor válido');
+  if(!confirm(`Registrar pagamento separado de ${fmt(valor)} para ${c.nome}?`)) return;
+  c.historico.push({ id: Date.now(), tipo: 'entrada', desc: 'Pagamento separado', valor, data: hoje(), separado: true });
+  c.saldo = Math.max(0, c.saldo - valor);
+  D.recebido = (D.recebido || 0) + valor;
+  inp.value = '';
+  save();
+  filtrarRelatorio();
+  document.getElementById('modFuncSaldo').innerHTML =
+    `<span style="color:white;font-size:.8rem">Saldo total: </span><span style="color:${c.saldo>0?'#f87171':'#4ade80'};font-weight:700">${fmt(c.saldo)}</span>`;
+}
+
 function filtrarRelatorio(){
   if(_relIdx===null) return;
   const c = D.clientes[_relIdx];
@@ -4761,9 +4786,12 @@ function filtrarRelatorio(){
           });
           itensBreakdown += `</div>`;
         }
-        preview+=`<div style="font-size:.78rem;padding:6px 0;border-bottom:1px solid #f1f5f9">
+        const iconeEntrada = h.separado ? '💵' : '💚';
+        const bgEntrada = h.separado ? 'background:#f0fdf4;border-left:3px solid #16a34a;border-radius:0 6px 6px 0;padding-left:6px' : '';
+        const tagSep = h.separado ? `<span style="font-size:.6rem;background:#dcfce7;color:#166534;border-radius:4px;padding:1px 5px;margin-left:4px;font-weight:700">SEPARADO</span>` : '';
+        preview+=`<div style="font-size:.78rem;padding:6px 0;border-bottom:1px solid #f1f5f9;${bgEntrada}">
           <div style="display:flex;justify-content:space-between;align-items:center;gap:4px">
-            <span>💚 ${h.desc}<br><small style="color:#94a3b8">${h.data}${horaLabel}</small>${nomesInfo}${fotoHtml}</span>
+            <span>${iconeEntrada} ${h.desc}${tagSep}<br><small style="color:#94a3b8">${h.data}${horaLabel}</small>${nomesInfo}${fotoHtml}</span>
             <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
               <span style="font-weight:700;color:#16a34a">${fmt(h.valor)}</span>
               <button onclick="delPix(${_relIdx},'${h.id||''}',${h.valor})" style="background:#ef4444;color:#fff;border:none;padding:3px 8px;border-radius:5px;font-size:.7rem;cursor:pointer">🗑️</button>
@@ -4843,9 +4871,13 @@ function filtrarRelatorio(){
     if(entradas.length){
       entradas.forEach(h=>{
         const dupTag = h.duplicado ? ' ⚠️ *DUPLICADO*' : '';
-        msg+=`✅ *${fmt(h.valor)}* em ${h.data}${dupTag}\n`;
-        msg+=`   📤 Enviado por: *${h.nomeRemetente || 'não identificado'}*\n`;
-        msg+=`   📥 Recebido por: *${h.nomeRecebedor || 'não identificado'}*\n`;
+        if(h.separado){
+          msg+=`💵 *${fmt(h.valor)}* em ${h.data} — _pagamento separado_\n`;
+        } else {
+          msg+=`✅ *${fmt(h.valor)}* em ${h.data}${dupTag}\n`;
+          msg+=`   📤 Enviado por: *${h.nomeRemetente || 'não identificado'}*\n`;
+          msg+=`   📥 Recebido por: *${h.nomeRecebedor || 'não identificado'}*\n`;
+        }
       });
       msg+=`💰 *Total pago: ${fmt(totalEntradas)}*\n`;
     } else {

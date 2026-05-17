@@ -3228,10 +3228,16 @@ function _enviarRelFuncWpp(ci){
     (e.itensPix||[]).forEach(ip=>{ pagoPorItem[ip.saidaId]=(pagoPorItem[ip.saidaId]||0)+(ip.valorPago||0); });
   });
 
-  // Dinheiro/pagamentos avulsos (sem itensPix): distribui nos itens do mais antigo ao mais novo
+  // Pagamentos avulsos (sem itensPix) já salvos no histórico
   let dinheiroLivre = entradas.filter(e=>!e.itensPix).reduce((s,h)=>s+(h.valor||0),0);
 
-  const totalEntradas = entradas.reduce((s,h)=>s+(h.valor||0),0);
+  // Perguntar se houve pagamento separado (dinheiro) antes de enviar
+  const inputSep = window.prompt(`💵 ${c.nome} — Houve pagamento em dinheiro separado?\n\nDigite o valor em R$ (ou deixe vazio se não houve):`, '');
+  const pagSep = parseFloat((inputSep||'').replace(',','.')) || 0;
+  if(pagSep > 0) dinheiroLivre += pagSep;
+
+  const totalEntradas = entradas.reduce((s,h)=>s+(h.valor||0),0) + pagSep;
+  const saldoFinal = Math.max(0, (c.saldo||0) - pagSep);
 
   const pendentes = hist.filter(h=>h.tipo==='saida')
     .sort((a,b)=>parseDt(a.data)-parseDt(b.data))
@@ -3259,9 +3265,10 @@ function _enviarRelFuncWpp(ci){
   }
 
   msg+=`━━━━━━━━━━━━━━━\n`;
+  if(pagSep > 0) msg+=`💵 Pagamento dinheiro: *${fmt(pagSep)}*\n`;
   msg+=`💰 Total pago: *${fmt(totalEntradas)}*\n`;
-  msg+=c.saldo>0
-    ?`❗ *SALDO DEVEDOR: ${fmt(c.saldo)}*`
+  msg+=saldoFinal>0
+    ?`❗ *SALDO DEVEDOR: ${fmt(saldoFinal)}*`
     :`✅ *CONTA ZERADA*`;
 
   const num=(c.wpp||'').replace(/\D/g,'');

@@ -176,28 +176,13 @@ tr:last-child td{border-bottom:none}
       <div id="funcSaldoStatus" style="font-size:.75rem;color:#94a3b8">Carregando seus dados...</div>
     </div>
 
-    <!-- Botão enviar comprovante -->
     <div id="funcBtnPagarWrap">
-      <button onclick="abrirEnvioComprovante()" style="width:100%;padding:16px;background:#25d366;color:#fff;border:none;border-radius:16px;font-weight:800;font-size:1rem;cursor:pointer;margin-bottom:10px;box-shadow:0 4px 16px rgba(37,211,102,.3)">
-        💸 ENVIAR COMPROVANTE DE PIX
-      </button>
       <button onclick="abrirGaleriaFunc()" style="width:100%;padding:12px;background:rgba(255,255,255,.08);color:#94a3b8;border:1px solid rgba(255,255,255,.15);border-radius:14px;font-weight:700;font-size:.82rem;cursor:pointer;margin-bottom:10px">
         🖼️ VER MEUS COMPROVANTES
       </button>
       <button onclick="enviarSaldoParaGerente()" style="width:100%;padding:12px;background:rgba(59,130,246,.15);color:#60a5fa;border:1px solid rgba(59,130,246,.3);border-radius:14px;font-weight:700;font-size:.82rem;cursor:pointer;margin-bottom:12px">
         📊 ENVIAR MEU SALDO AO GERENTE
       </button>
-    </div>
-
-    <!-- CHAVE PIX NA TELA PRINCIPAL DO FUNCIONÁRIO -->
-    <div id="boxChavePixTela" style="display:none;background:linear-gradient(135deg,#0f172a,#1e3a5f);border:2px solid #a78bfa;border-radius:16px;padding:16px;margin-bottom:16px;text-align:center">
-      <div style="font-size:.6rem;color:#a78bfa;text-transform:uppercase;font-weight:700;letter-spacing:.05em;margin-bottom:6px">💳 Chave PIX do Gerente</div>
-      <div id="exibirChavePixTela" style="font-size:1rem;font-weight:800;color:#fff;word-break:break-all;margin-bottom:12px;padding:10px;background:rgba(255,255,255,.08);border-radius:8px"></div>
-      <button id="btnCopiarPixTela" onclick="copiarChavePixTela()"
-        style="width:100%;padding:13px;background:#a78bfa;color:#fff;border:none;border-radius:10px;font-weight:800;font-size:.9rem;cursor:pointer">
-        📋 COPIAR CHAVE PIX
-      </button>
-      <div id="chaveCopiadaMsgTela" style="font-size:.7rem;color:#4ade80;margin-top:6px;min-height:16px"></div>
     </div>
 
     <!-- Histórico -->
@@ -5565,12 +5550,6 @@ function _reconstruirTelaFunc(){
       <div id="funcSaldoStatus" style="font-size:.75rem;color:#94a3b8">Carregando seus dados...</div>
     </div>
     <div id="funcBtnPagarWrap">
-      <button onclick="abrirEnvioComprovante()" style="width:100%;padding:16px;background:#25d366;color:#fff;border:none;border-radius:16px;font-weight:800;font-size:1rem;cursor:pointer;margin-bottom:10px;box-shadow:0 4px 16px rgba(37,211,102,.3)">
-        💸 ENVIAR COMPROVANTE DE PIX
-      </button>
-      <button onclick="enviarWppDireto()" id="btnWppDireto" style="width:100%;padding:13px;background:rgba(37,211,102,.15);color:#25d366;border:2px solid #25d366;border-radius:14px;font-weight:800;font-size:.88rem;cursor:pointer;margin-bottom:10px;display:none">
-        📲 ENVIAR MENSAGEM PELO MEU WHATSAPP
-      </button>
       <button onclick="abrirGaleriaFunc()" style="width:100%;padding:12px;background:rgba(255,255,255,.08);color:#94a3b8;border:1px solid rgba(255,255,255,.15);border-radius:14px;font-weight:700;font-size:.82rem;cursor:pointer;margin-bottom:10px">
         🖼️ VER MEUS COMPROVANTES
       </button>
@@ -5578,7 +5557,6 @@ function _reconstruirTelaFunc(){
         📊 ENVIAR MEU SALDO AO GERENTE
       </button>
     </div>
-    <div id="boxChavePixTela" style="display:none"></div>
     <div style="background:#fff;border-radius:20px;padding:16px;box-shadow:0 2px 12px rgba(0,0,0,.08)">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
         <div style="font-size:.7rem;font-weight:800;color:#475569;text-transform:uppercase;letter-spacing:.05em">📋 Meu Histórico Completo</div>
@@ -5671,15 +5649,6 @@ function renderAreaFunc(func, dados){
   if(modComp) modComp.innerText = fmt(saldo);
 
   
-  const btnPagarWrap = document.getElementById('funcBtnPagarWrap');
-  if(saldo > 0){
-    btnPagarWrap.style.display = 'block';
-  } else {
-    
-    btnPagarWrap.style.display = 'block';
-    const btnPagar = btnPagarWrap.querySelector('button:first-child');
-    if(btnPagar) btnPagar.style.display = 'none';
-  }
 
   
   const hist = (func.historico||[]).slice().reverse();

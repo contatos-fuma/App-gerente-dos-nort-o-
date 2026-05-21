@@ -3407,7 +3407,7 @@ function _renderRelGeral(){
   const totalFuncionarios = (D.clientes||[]).length;
   const funcDevedores = (D.clientes||[]).filter(c=>c.saldo>0).length;
   const caixa = (D.caixaManualOverride!=null) ? D.caixaManualOverride
-    : Math.max(0, (D.recebido||0) - (D.saidasCaixa||0) + (D.caixaExtra||0));
+    : Math.max(0, D.recebido||0);
   const rows = [
     { label:'💰 Caixa atual',         valor: fmt(caixa),             cor:'#16a34a' },
     { label:'🔴 Total a receber',      valor: fmt(totalDivida),       cor: totalDivida>0?'#dc2626':'#16a34a' },

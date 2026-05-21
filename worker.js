@@ -460,6 +460,18 @@ async function rotaFuncPagar({ token, valor, obs, analiseIA, hashComprovante, ur
     try { const enc = new TextEncoder().encode(String(hashComprovante)); const buf = await crypto.subtle.digest('SHA-256', enc); hashReal = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join(''); } catch (e) {}
   }
 
+  // Idempotency: prevent duplicate registration if the client retries after a network timeout
+  const ia0 = analiseIA && typeof analiseIA === 'object' ? analiseIA : {};
+  const idTransacaoNovo = ia0.id_transacao ? String(ia0.id_transacao).trim() : null;
+  const jaExiste = (dados.clientes[fi].historico || []).some(h => {
+    if (hashReal && h.hashComprovante === hashReal) return true;
+    if (idTransacaoNovo && idTransacaoNovo.length > 4 && h.idTransacao === idTransacaoNovo) return true;
+    return false;
+  });
+  if (jaExiste) {
+    return json({ ok: true, novoSaldo: dados.clientes[fi].saldo, historico: dados.clientes[fi].historico }, 200, cors);
+  }
+
   dados.clientes[fi].saldo = Math.max(0, (dados.clientes[fi].saldo || 0) - valorNum);
   if (isNaN(dados.clientes[fi].saldo)) dados.clientes[fi].saldo = 0;
   const ia = analiseIA && typeof analiseIA === 'object' ? analiseIA : {};

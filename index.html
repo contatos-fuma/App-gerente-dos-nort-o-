@@ -4887,7 +4887,17 @@ function filtrarRelatorio(){
     window.open(`https://wa.me/55${c.wpp}?text=${encodeURIComponent(msg)}`,'_blank');
   };
 }
-function delAdiant(fi,ai){ if(!confirm('Remover este adiantamento?')) return; D.fornecedores[fi].adiantamentos.splice(ai,1); save(); }
+function delAdiant(fi,ai){
+  const a = D.fornecedores[fi].adiantamentos[ai];
+  if(!a) return;
+  if(!confirm('Apagar adiantamento de ' + fmt(a.valor) + '?\n\nIrreversível!')) return;
+  if(a.origem==='caixa'){
+    const devolver = confirm('💰 Devolver R$ ' + a.valor.toFixed(2).replace('.',',') + ' ao Caixa?\n\n✅ OK = Devolve ao caixa\n❌ Cancelar = Não devolve');
+    if(devolver){ D.recebido += a.valor; D.saidasCaixa = Math.max(0, (D.saidasCaixa||0) - a.valor); }
+  }
+  D.fornecedores[fi].adiantamentos.splice(ai,1);
+  save();
+}
 function delNota(fi, contaId){
   const f = D.fornecedores[fi]; if(!f) return;
   const ci = f.contas.findIndex(c=>c.id==contaId); if(ci<0) return;

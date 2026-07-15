@@ -856,6 +856,8 @@ tr:last-child td{border-bottom:none}
     <div class="section-title" style="margin-top:14px">👥 Funcionários</div>
     <button onclick="_enviarRelGeralWpp()" style="width:100%;padding:13px;background:#25d366;color:#fff;border:none;border-radius:12px;font-weight:800;font-size:.88rem;cursor:pointer;margin-bottom:10px">📲 Relatório geral (todos os devedores)</button>
     <button onclick="_enviarMercRuaWpp()" style="width:100%;padding:13px;background:#dc2626;color:#fff;border:none;border-radius:12px;font-weight:800;font-size:.88rem;cursor:pointer;margin-bottom:10px">📲 Mercadorias na rua — a receber</button>
+    <button onclick="cobrarTodos()" style="width:100%;padding:13px;background:#7c3aed;color:#fff;border:none;border-radius:12px;font-weight:800;font-size:.88rem;cursor:pointer;margin-bottom:10px">📲 Cobrar (fila de devedores)</button>
+    <button onclick="document.getElementById('modImportarTabela').classList.add('on')" style="width:100%;padding:13px;background:#0891b2;color:#fff;border:none;border-radius:12px;font-weight:800;font-size:.88rem;cursor:pointer;margin-bottom:10px">📋 Importar planilha (vales/descontos)</button>
     <div id="botoesFunc"></div>
 
     <div class="section-title" style="margin-top:14px">📦 Estoque</div>
@@ -1090,8 +1092,8 @@ tr:last-child td{border-bottom:none}
 <div id="modCobranca" class="overlay">
   <div class="mbox"><div class="modal-handle"></div>
     <button onclick="fecharMod('modCobranca')" style="width:100%;padding:11px;background:#f1f5f9;border:none;border-radius:12px;font-weight:700;cursor:pointer;margin-bottom:14px;color:#475569;font-size:.85rem">✕ Fechar</button>
-    <h3 style="text-align:center;margin:0 0 4px">📲 Cobrança em Massa</h3>
-    <p style="text-align:center;font-size:.7rem;color:#64748b;margin:0 0 12px">Toque em cada funcionário para abrir o WhatsApp</p>
+    <h3 style="text-align:center;margin:0 0 4px">📲 Fila de Cobrança</h3>
+    <p style="text-align:center;font-size:.7rem;color:#64748b;margin:0 0 12px">Cobre um de cada vez — ao confirmar, o próximo devedor aparece automaticamente</p>
     <!-- logGrupo desativado
     <div id="logGrupo" style="display:none;background:#0f172a;border-radius:10px;padding:12px;margin-bottom:10px;font-family:monospace;font-size:.72rem;line-height:1.8;max-height:200px;overflow-y:auto"></div>
     -->
@@ -1135,6 +1137,22 @@ tr:last-child td{border-bottom:none}
       <textarea id="bkRestaurar" placeholder="Cole o texto do backup aqui e toque em Restaurar..." style="width:100%;height:80px;font-family:monospace;font-size:.65rem;padding:8px;border:1.5px solid #f59e0b;border-radius:8px;background:#fff;resize:none;margin-bottom:8px"></textarea>
       <button onclick="restaurarDoBk()" style="width:100%;padding:13px;background:#f59e0b;color:#1e293b;border:none;border-radius:10px;font-weight:800;cursor:pointer;font-size:.9rem">⚠️ RESTAURAR DADOS</button>
     </div>
+  </div>
+</div>
+
+<!-- MODAL IMPORTAR TABELA (vales/descontos em lote) -->
+<div id="modImportarTabela" class="overlay">
+  <div class="mbox"><div class="modal-handle"></div>
+    <button onclick="fecharMod('modImportarTabela')" style="width:100%;padding:11px;background:#f1f5f9;border:none;border-radius:12px;font-weight:700;cursor:pointer;margin-bottom:14px;color:#475569;font-size:.85rem">✕ Fechar</button>
+    <h3 style="text-align:center;margin:0 0 4px">📋 Importar Planilha</h3>
+    <p style="text-align:center;font-size:.7rem;color:#64748b;margin:0 0 12px">Cole uma tabela com Nome, Valor e Tipo (copiada de uma planilha) para dar baixa em vários funcionários de uma vez</p>
+
+    <textarea id="importTabelaTexto" placeholder="Cole aqui a tabela copiada da planilha..." style="width:100%;height:90px;font-family:monospace;font-size:.7rem;padding:8px;border:1.5px solid #0891b2;border-radius:8px;background:#fff;resize:none;margin-bottom:8px;box-sizing:border-box"></textarea>
+    <button onclick="analisarTabelaImport()" style="width:100%;padding:13px;background:#0891b2;color:#fff;border:none;border-radius:10px;font-weight:800;cursor:pointer;font-size:.9rem;margin-bottom:12px">🔍 ANALISAR</button>
+
+    <div id="tabelaImportPreview" style="margin-bottom:12px"></div>
+
+    <button id="btnAplicarImport" onclick="aplicarImportacaoTabela()" style="display:none;width:100%;padding:15px;background:#16a34a;color:#fff;border:none;border-radius:12px;font-weight:800;cursor:pointer;font-size:.95rem">✅ APLICAR BAIXAS SELECIONADAS</button>
   </div>
 </div>
 
@@ -3773,6 +3791,8 @@ function fecharMod(id){
     const logDiv = document.getElementById('_logEnvio');
     if(logDiv) logDiv.remove();
   }
+
+  if(id === 'modReceberAcerto') _emFilaCobranca = false;
 }
 
 function abrirAdiant(){
@@ -4085,50 +4105,87 @@ async function enviarRelatorioTodos(){
   btn.innerText = `📲 ENVIAR PARA TODOS (${D.clientes.filter(c=>c.wpp).length})`;
 }
 
+let _filaCobrancaIdxs = [];
+let _filaCobrancaPos = 0;
+let _emFilaCobranca = false;
+
+// ✅ IDs monotônicos para historico — evita colisão quando várias entradas são lançadas no mesmo milissegundo (ex: importação em lote)
+let _histIdSeq = 0;
+function _proximoHistId(){
+  _histIdSeq = Math.max(_histIdSeq + 1, Date.now());
+  return _histIdSeq;
+}
+
 function cobrarTodos(){
-  
-  const comWpp = D.clientes.filter(c=>c.wpp);
-  const semWpp = D.clientes.filter(c=>!c.wpp);
+  _filaCobrancaIdxs = D.clientes
+    .map((c,i)=>i)
+    .filter(i=>D.clientes[i].saldo>0)
+    .sort((a,b)=>D.clientes[b].saldo - D.clientes[a].saldo);
+  _filaCobrancaPos = 0;
 
-  let html = '';
-
-  
-  html += `<button id="btnEnviarTodos" onclick="enviarRelatorioTodos()"
-    style="width:100%;padding:16px;background:#25d366;color:#fff;border:none;border-radius:12px;font-weight:800;font-size:1rem;cursor:pointer;margin-bottom:10px;box-shadow:0 4px 16px rgba(37,211,102,.3)">
-    📲 ENVIAR PARA TODOS (${comWpp.length})
-  </button>`;
-
-  
-  html += `<div id="logEnvioTodos" style="display:none;background:#0f172a;border-radius:10px;padding:12px;margin-bottom:12px;font-family:monospace;font-size:.72rem;line-height:1.9;max-height:220px;overflow-y:auto"></div>`;
-
-  
-  if(semWpp.length){
-    html += `<div style="background:#fff4e5;border:1px solid #f59e0b;border-radius:8px;padding:10px;margin-bottom:12px;font-size:.75rem;color:#92400e">
-      ⚠️ <b>${semWpp.length} funcionário(s) sem WhatsApp:</b> ${semWpp.map(c=>c.nome).join(', ')}
-    </div>`;
-  }
-
-  
-  if(comWpp.length){
-    html += `<div style="font-size:.65rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">Ou envie individualmente:</div>`;
-    D.clientes.forEach(c=>{
-      const msg = montarRelatorio(c);
-      const wppUrl = c.wpp ? `https://wa.me/55${c.wpp}?text=${encodeURIComponent(msg)}` : null;
-      html+=`<div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:10px 12px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;gap:10px">
-        <div>
-          <b style="font-size:.85rem">👤 ${c.nome}</b><br>
-          <small style="color:${c.saldo>0?'#dc2626':'#16a34a'};font-weight:700">${c.saldo>0?'❗ '+fmt(c.saldo):'✅ Em dia'}</small>
-        </div>
-        ${wppUrl
-          ? `<a href="${wppUrl}" target="_blank" style="background:#25d366;color:#fff;padding:8px 12px;border-radius:8px;font-weight:700;text-decoration:none;font-size:.75rem;white-space:nowrap">📲 Enviar</a>`
-          : `<span style="color:#94a3b8;font-size:.72rem">Sem WhatsApp</span>`
-        }
-      </div>`;
-    });
-  }
-
-  document.getElementById('listaCobranca').innerHTML = html;
   document.getElementById('modCobranca').classList.add('on');
+
+  if(!_filaCobrancaIdxs.length){
+    document.getElementById('listaCobranca').innerHTML =
+      `<div style="background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:12px;padding:16px;text-align:center;font-size:.85rem;color:#166534">✅ Nenhum funcionário devendo no momento</div>`;
+    return;
+  }
+
+  _abrirProximaDaFila();
+}
+
+function _abrirProximaDaFila(){
+  if(_filaCobrancaPos >= _filaCobrancaIdxs.length){
+    document.getElementById('listaCobranca').innerHTML =
+      `<div style="background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:12px;padding:16px;text-align:center;font-size:.85rem;color:#166534">🎉 Fila de cobrança concluída!</div>`;
+    return;
+  }
+
+  const idx = _filaCobrancaIdxs[_filaCobrancaPos];
+  const c = D.clientes[idx];
+  const restam = _filaCobrancaIdxs.length - _filaCobrancaPos;
+  const msg = montarRelatorio(c);
+  const wppUrl = c.wpp ? `https://wa.me/55${c.wpp}?text=${encodeURIComponent(msg)}` : null;
+
+  document.getElementById('listaCobranca').innerHTML = `
+    <div style="font-size:.65rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px;text-align:center">Faltam ${restam} devedor(es)</div>
+    <div style="background:#fff;border:1.5px solid #fecaca;border-radius:14px;padding:16px;text-align:center;margin-bottom:12px">
+      <div style="font-size:1rem;font-weight:800;color:#1e293b;margin-bottom:4px">👤 ${c.nome}</div>
+      <div style="font-size:1.3rem;font-weight:800;color:#dc2626">${fmt(c.saldo)}</div>
+    </div>
+    ${wppUrl
+      ? `<a href="${wppUrl}" target="_blank" style="display:block;width:100%;padding:13px;background:#25d366;color:#fff;border-radius:12px;font-weight:800;text-decoration:none;font-size:.85rem;text-align:center;margin-bottom:8px;box-sizing:border-box">📲 Cobrar no WhatsApp</a>`
+      : ''
+    }
+    <button onclick="_abrirAcertoDaFila(${idx})" style="width:100%;padding:13px;background:#16a34a;color:#fff;border:none;border-radius:12px;font-weight:800;font-size:.85rem;cursor:pointer;margin-bottom:8px">✅ Confirmar Recebimento</button>
+    <button onclick="_pularFila()" style="width:100%;padding:10px;background:#f1f5f9;color:#475569;border:none;border-radius:10px;font-weight:700;font-size:.78rem;cursor:pointer">⏭️ Pular por agora</button>
+  `;
+}
+
+function _pularFila(){
+  _filaCobrancaPos++;
+  _abrirProximaDaFila();
+}
+
+function _abrirAcertoDaFila(idx){
+  _emFilaCobranca = true;
+  document.getElementById('modCobranca').classList.remove('on');
+  _acertoFuncIdx = idx;
+  _itensSelecionadosAcerto = {};
+  const c = D.clientes[idx];
+  document.getElementById('modAcertoNome').innerText = c.nome;
+  document.getElementById('modAcertoSaldo').innerText = fmt(c.saldo);
+  document.getElementById('vAcertoValor').value = '';
+  const _agora = new Date();
+  const _dateEl = document.getElementById('acertoDataPix');
+  const _timeEl = document.getElementById('acertoHoraPix');
+  if(_dateEl) _dateEl.value = _agora.toISOString().slice(0,10);
+  if(_timeEl) _timeEl.value = _agora.toTimeString().slice(0,5);
+  _limparAcertoFoto();
+  const _det = document.getElementById('detalhesComprovante');
+  if(_det) _det.removeAttribute('open');
+  _renderItensAcerto();
+  document.getElementById('modReceberAcerto').classList.add('on');
 }
 
 function _bkJson(){ return JSON.stringify(D); }
@@ -4217,6 +4274,149 @@ function restaurarDeArquivo(input){
 
 function copiarBackup(){ abrirBackup(); }
 function importarBackup(){ abrirBackup(); }
+
+// ────────────────────────────────────────────────────────────
+// IMPORTAR PLANILHA (Nome / Valor / Tipo) — baixa em lote
+// ────────────────────────────────────────────────────────────
+let _importRows = [];
+
+function _normNome(s){
+  return String(s||'')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .toLowerCase().trim().replace(/\s+/g,' ');
+}
+
+function _detectarDelimitadorImport(linhas){
+  const amostra = linhas.slice(0,3);
+  if(amostra.some(l=>l.includes('\t'))) return '\t';
+  const cortesVirgula = amostra.map(l=>l.split(',').length);
+  if(cortesVirgula.every(n=>n>=2) && cortesVirgula[0]===cortesVirgula[cortesVirgula.length-1]) return ',';
+  return /\s{2,}/;
+}
+
+function _parseValorImport(txt){
+  let s = String(txt||'').trim().replace(/R\$\s?/i,'').replace(/[^\d,.-]/g,'');
+  if(s.includes(',') && s.includes('.')) s = s.replace(/\./g,'').replace(',','.');
+  else if(s.includes(',')) s = s.replace(',','.');
+  return _parseValor(s);
+}
+
+function _matchFuncionarioImport(nomeRaw){
+  const nomeN = _normNome(nomeRaw);
+  let idx = D.clientes.findIndex(c=>c.nome===nomeRaw);
+  if(idx>=0) return {idx, status:'ok'};
+  idx = D.clientes.findIndex(c=>_normNome(c.nome)===nomeN);
+  if(idx>=0) return {idx, status:'ok'};
+  idx = D.clientes.findIndex(c=>_normNome(c.nome).includes(nomeN) || nomeN.includes(_normNome(c.nome)));
+  if(idx>=0) return {idx, status:'ambiguo'};
+  return {idx:-1, status:'sem-match'};
+}
+
+function analisarTabelaImport(){
+  const bruto = document.getElementById('importTabelaTexto').value;
+  const linhas = bruto.split(/\r?\n/).map(l=>l.trim()).filter(l=>l);
+  if(!linhas.length) return alert('Cole a tabela primeiro.');
+
+  const delim = _detectarDelimitadorImport(linhas);
+  let linhasDados = linhas.map(l=>l.split(delim).map(s=>s.trim()));
+
+  // Descarta cabeçalho se a 2ª coluna da 1ª linha não for número
+  if(linhasDados.length>1 && isNaN(_parseValorImport(linhasDados[0][1]))) linhasDados = linhasDados.slice(1);
+
+  _importRows = linhasDados.map(cols=>{
+    if(cols.length<2){
+      return {raw:cols.join(' '), nome:cols[0]||'', valor:NaN, tipo:'', matchIdx:-1, status:'linha-invalida', checked:false};
+    }
+    const nomeRaw = cols[0];
+    const valor = _parseValorImport(cols[1]);
+    const tipo = cols.slice(2).join(' ').trim();
+    if(isNaN(valor)){
+      return {raw:cols.join(' '), nome:nomeRaw, valor:NaN, tipo, matchIdx:-1, status:'linha-invalida', checked:false};
+    }
+    const {idx, status} = _matchFuncionarioImport(nomeRaw);
+    return {raw:cols.join(' '), nome:nomeRaw, valor, tipo, matchIdx:idx, status, checked: status==='ok'};
+  });
+
+  _renderPreviewImport();
+}
+
+function _renderPreviewImport(){
+  const box = document.getElementById('tabelaImportPreview');
+  const btnAplicar = document.getElementById('btnAplicarImport');
+  if(!_importRows.length){
+    box.innerHTML = '<div style="text-align:center;font-size:.78rem;color:#94a3b8">Nenhuma linha para revisar.</div>';
+    btnAplicar.style.display = 'none';
+    return;
+  }
+
+  const badges = {
+    'ok': '<span style="color:#16a34a">✅</span>',
+    'ambiguo': '<span style="color:#f59e0b">⚠️</span>',
+    'sem-match': '<span style="color:#f59e0b">⚠️</span>',
+    'linha-invalida': '<span style="color:#dc2626">❌</span>'
+  };
+
+  box.innerHTML = _importRows.map((r,i)=>{
+    const invalida = r.status==='linha-invalida';
+    return `<div style="background:#fff;border:1.5px solid ${invalida?'#fecaca':'#e2e8f0'};border-radius:10px;padding:10px;margin-bottom:8px;${invalida?'opacity:.6':''}">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+        <input type="checkbox" ${r.checked?'checked':''} ${invalida?'disabled':''} onchange="_atualizarImportRow(${i},'checked',this.checked)" style="width:18px;height:18px;accent-color:#16a34a;flex-shrink:0">
+        ${badges[r.status]}
+        <span style="font-size:.68rem;color:#94a3b8;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${sanitize(r.raw)}</span>
+      </div>
+      ${invalida
+        ? `<div style="font-size:.72rem;color:#dc2626">Linha não reconhecida — ignorada</div>`
+        : `<div style="display:flex;gap:6px;flex-wrap:wrap">
+            <select onchange="_atualizarImportRow(${i},'matchIdx',this.value)" style="flex:1;min-width:120px;padding:7px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:.75rem">
+              <option value="-1">— selecionar funcionário —</option>
+              ${D.clientes.map((c,ci)=>`<option value="${ci}" ${ci==r.matchIdx?'selected':''}>${sanitize(c.nome)}</option>`).join('')}
+            </select>
+            <input type="number" value="${r.valor.toFixed(2)}" step="0.01" oninput="_atualizarImportRow(${i},'valor',this.value)" style="width:90px;padding:7px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:.75rem;text-align:center">
+            <input type="text" value="${sanitize(r.tipo)}" placeholder="Tipo" oninput="_atualizarImportRow(${i},'tipo',this.value)" style="flex:1;min-width:80px;padding:7px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:.75rem">
+          </div>`
+      }
+    </div>`;
+  }).join('');
+
+  btnAplicar.style.display = 'block';
+}
+
+function _atualizarImportRow(i, campo, valor){
+  const r = _importRows[i];
+  if(!r) return;
+  if(campo==='matchIdx'){
+    r.matchIdx = parseInt(valor,10);
+    if(r.matchIdx>=0){ r.status = 'ok'; r.checked = true; _renderPreviewImport(); }
+  }
+  else if(campo==='valor') r.valor = _parseValor(valor);
+  else if(campo==='checked') r.checked = !!valor;
+  else r[campo] = valor;
+}
+
+function aplicarImportacaoTabela(){
+  const validas = _importRows.filter(r=>r.checked && r.matchIdx>=0 && r.valor>0);
+  if(!validas.length) return alert('Nenhuma linha selecionada para aplicar.');
+  const ignoradas = _importRows.length - validas.length;
+
+  let total = 0;
+  validas.forEach(r=>{
+    const c = D.clientes[r.matchIdx];
+    if(!c) return;
+    const desc = 'Importado: ' + (r.tipo || 'baixa');
+    c.historico.push({ id:_proximoHistId(), tipo:'entrada', desc, valor:r.valor, data:hoje() });
+    c.saldo = Math.max(0, c.saldo - r.valor);
+    D.recebido += r.valor;
+    total += r.valor;
+  });
+
+  save();
+  fecharMod('modImportarTabela');
+  document.getElementById('importTabelaTexto').value = '';
+  _importRows = [];
+  document.getElementById('tabelaImportPreview').innerHTML = '';
+  document.getElementById('btnAplicarImport').style.display = 'none';
+  alert(`✅ ${validas.length} baixa(s) aplicada(s), total ${fmt(total)}${ignoradas?` — ${ignoradas} linha(s) ignorada(s)`:''}`);
+}
 
 function abrirLucros(){
   const snap=JSON.parse(JSON.stringify(D));
@@ -4616,14 +4816,22 @@ async function _confirmarReceberAcerto(){
     ? 'Acerto — ' + itensSel.map(([id,v])=>{ const s=(c.historico||[]).find(h=>String(h.id)===String(id)); return (s?s.desc:'Item')+': '+fmt(+v); }).join(', ')
     : 'Acerto recebido';
 
-  c.historico.push({ id:Date.now(), tipo:'entrada', desc, valor, data:hoje(), itensPix,
+  c.historico.push({ id:_proximoHistId(), tipo:'entrada', desc, valor, data:hoje(), itensPix,
     timestampPix, urlFoto: urlFotoAcerto||null });
   c.saldo = Math.max(0, c.saldo - valor);
   D.recebido += valor;
+  const _veioDaFila = _emFilaCobranca;
   fecharMod('modReceberAcerto');
   save();
   render();
-  document.getElementById('selCli').value = c.nome;
+
+  if(_veioDaFila){
+    _filaCobrancaPos++;
+    document.getElementById('modCobranca').classList.add('on');
+    _abrirProximaDaFila();
+  } else {
+    document.getElementById('selCli').value = c.nome;
+  }
   alert(`✅ Acerto de ${fmt(valor)} registrado para ${c.nome}`);
 }
 

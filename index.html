@@ -961,6 +961,26 @@ tr:last-child td{border-bottom:none}
   </div>
 </div>
 
+<!-- MODAL EDITAR PAGAMENTO/BAIXA -->
+<div id="modEditarEntrada" class="overlay">
+  <div class="mbox"><div class="modal-handle"></div>
+    <button onclick="fecharMod('modEditarEntrada')" style="width:100%;padding:11px;background:#f1f5f9;border:none;border-radius:12px;font-weight:700;cursor:pointer;margin-bottom:14px;color:#475569;font-size:.85rem">✕ Fechar</button>
+    <h3 style="text-align:center;margin:0 0 4px">✏️ Editar Pagamento</h3>
+    <p style="text-align:center;font-size:.7rem;color:#64748b;margin:0 0 12px">Corrija o funcionário, valor ou descrição caso tenha marcado algo errado</p>
+
+    <label style="font-size:.65rem;font-weight:700;color:#475569;text-transform:uppercase">👤 Funcionário</label>
+    <select id="editEntradaFunc" style="margin-bottom:10px"></select>
+
+    <label style="font-size:.65rem;font-weight:700;color:#475569;text-transform:uppercase">💰 Valor (R$)</label>
+    <input id="editEntradaValor" type="number" step="0.01" style="margin-bottom:10px">
+
+    <label style="font-size:.65rem;font-weight:700;color:#475569;text-transform:uppercase">📝 Descrição</label>
+    <input id="editEntradaDesc" type="text" style="margin-bottom:14px">
+
+    <button onclick="salvarEdicaoEntrada()" style="width:100%;padding:15px;background:#16a34a;color:#fff;border:none;border-radius:12px;font-weight:800;cursor:pointer;font-size:.95rem">✅ SALVAR CORREÇÃO</button>
+  </div>
+</div>
+
 <!-- MODAL TUTORIAL -->
 <div id="modTutorial" class="overlay">
   <div class="mbox"><div class="modal-handle"></div>
@@ -4312,29 +4332,51 @@ function _matchFuncionarioImport(nomeRaw){
   return {idx:-1, status:'sem-match'};
 }
 
+// ✅ Reconhece o formato de texto livre usado no dia a dia (colado do WhatsApp/notas):
+// "<nome> <valor>[pix] <local> (<tipo>)" — ex: "Fastama 100 pix cuiba (bala)", "Ligerinho 200pix cuiba (óleo)"
+// Regra: primeiro vem o nome, depois o valor, e por último — entre parênteses — a mercadoria/tipo.
+// O que fica no meio ("pix cuiba", "pix barão"...) é só o destino do pix e é ignorado.
+function _parseLinhaLivre(linha){
+  const mParen = linha.match(/\(([^)]*)\)\s*$/);
+  const tipo = mParen ? mParen[1].trim() : '';
+  const semParen = mParen ? linha.slice(0, mParen.index) : linha;
+
+  const mNome = semParen.match(/^(\S+)/);
+  const nome = mNome ? mNome[1] : '';
+
+  const mValor = semParen.match(/(\d+(?:[.,]\d+)?)/);
+  const valor = mValor ? _parseValorImport(mValor[1]) : NaN;
+
+  return {nome, valor, tipo};
+}
+
 function analisarTabelaImport(){
   const bruto = document.getElementById('importTabelaTexto').value;
   const linhas = bruto.split(/\r?\n/).map(l=>l.trim()).filter(l=>l);
   if(!linhas.length) return alert('Cole a tabela primeiro.');
 
   const delim = _detectarDelimitadorImport(linhas);
-  let linhasDados = linhas.map(l=>l.split(delim).map(s=>s.trim()));
 
-  // Descarta cabeçalho se a 2ª coluna da 1ª linha não for número
-  if(linhasDados.length>1 && isNaN(_parseValorImport(linhasDados[0][1]))) linhasDados = linhasDados.slice(1);
+  _importRows = linhas.map(linha=>{
+    const cols = linha.split(delim).map(s=>s.trim());
+    let nome, valor, tipo;
 
-  _importRows = linhasDados.map(cols=>{
-    if(cols.length<2){
-      return {raw:cols.join(' '), nome:cols[0]||'', valor:NaN, tipo:'', matchIdx:-1, status:'linha-invalida', checked:false};
+    if(cols.length>=2 && !isNaN(_parseValorImport(cols[1]))){
+      // Tabela organizada em colunas (tab/vírgula) — Nome | Valor | Tipo
+      nome = cols[0];
+      valor = _parseValorImport(cols[1]);
+      tipo = cols.slice(2).join(' ').trim();
+    } else {
+      // Texto livre — tenta reconhecer "nome valor ... (tipo)"
+      const livre = _parseLinhaLivre(linha);
+      nome = livre.nome; valor = livre.valor; tipo = livre.tipo;
     }
-    const nomeRaw = cols[0];
-    const valor = _parseValorImport(cols[1]);
-    const tipo = cols.slice(2).join(' ').trim();
-    if(isNaN(valor)){
-      return {raw:cols.join(' '), nome:nomeRaw, valor:NaN, tipo, matchIdx:-1, status:'linha-invalida', checked:false};
+
+    if(!nome || isNaN(valor)){
+      return {raw:linha, nome:nome||'', valor:NaN, tipo:tipo||'', matchIdx:-1, status:'linha-invalida', checked:false};
     }
-    const {idx, status} = _matchFuncionarioImport(nomeRaw);
-    return {raw:cols.join(' '), nome:nomeRaw, valor, tipo, matchIdx:idx, status, checked: status==='ok'};
+    const {idx, status} = _matchFuncionarioImport(nome);
+    return {raw:linha, nome, valor, tipo, matchIdx:idx, status, checked: status==='ok'};
   });
 
   _renderPreviewImport();
@@ -4911,6 +4953,61 @@ function registrarPagamentoSep(){
     `<span style="color:white;font-size:.8rem">Saldo total: </span><span style="color:${c.saldo>0?'#f87171':'#4ade80'};font-weight:700">${fmt(c.saldo)}</span>`;
 }
 
+let _editEntradaCi = null;
+let _editEntradaId = null;
+
+function _abrirEditarEntrada(ci, entradaId){
+  const c = D.clientes[ci]; if(!c) return;
+  const h = (c.historico||[]).find(x=>x.tipo==='entrada' && String(x.id)===String(entradaId));
+  if(!h) return alert('Pagamento não encontrado. Reabra o relatório.');
+  _editEntradaCi = ci;
+  _editEntradaId = entradaId;
+  const sel = document.getElementById('editEntradaFunc');
+  sel.innerHTML = D.clientes.map((cli,i)=>`<option value="${i}" ${i===ci?'selected':''}>${sanitize(cli.nome)}</option>`).join('');
+  document.getElementById('editEntradaValor').value = h.valor;
+  document.getElementById('editEntradaDesc').value = h.desc || '';
+  document.getElementById('modEditarEntrada').classList.add('on');
+}
+
+function salvarEdicaoEntrada(){
+  if(_editEntradaCi===null || _editEntradaId===null) return;
+  const cOrig = D.clientes[_editEntradaCi]; if(!cOrig) return;
+  const idx = cOrig.historico.findIndex(x=>x.tipo==='entrada' && String(x.id)===String(_editEntradaId));
+  if(idx<0) return alert('Pagamento não encontrado. Reabra o relatório.');
+
+  const novoCi = parseInt(document.getElementById('editEntradaFunc').value, 10);
+  const novoValor = _parseValor(document.getElementById('editEntradaValor').value);
+  const novaDesc = document.getElementById('editEntradaDesc').value.trim() || 'Acerto recebido';
+  if(!(novoValor>0)) return alert('Digite um valor válido.');
+  const cDestino = D.clientes[novoCi]; if(!cDestino) return alert('Selecione um funcionário válido.');
+
+  const h = cOrig.historico[idx];
+  const valorAntigo = h.valor;
+
+  // Remove do funcionário original e lança a versão corrigida no destino (pode ser o mesmo funcionário)
+  cOrig.historico.splice(idx,1);
+  cDestino.historico = cDestino.historico || [];
+  cDestino.historico.push({ ...h, valor: novoValor, desc: novaDesc });
+
+  // Recalcula saldo do(s) funcionário(s) afetado(s) a partir do histórico — evita drift
+  new Set([cOrig, cDestino]).forEach(c=>{
+    let saldo = 0;
+    (c.historico||[]).forEach(item=>{
+      if(item.tipo==='saida') saldo += item.valor||0;
+      else if(item.tipo==='entrada') saldo -= item.valor||0;
+    });
+    c.saldo = Math.max(0, saldo);
+  });
+
+  D.recebido = (D.recebido||0) + (novoValor - valorAntigo);
+
+  fecharMod('modEditarEntrada');
+  save();
+  render();
+  if(_relIdx!==null) filtrarRelatorio();
+  alert('✅ Pagamento corrigido com sucesso.');
+}
+
 function filtrarRelatorio(){
   if(_relIdx===null) return;
   const c = D.clientes[_relIdx];
@@ -4987,6 +5084,7 @@ function filtrarRelatorio(){
             <span>${iconeEntrada} ${h.desc}${tagSep}<br><small style="color:#94a3b8">${h.data}${horaLabel}</small>${nomesInfo}${fotoHtml}</span>
             <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
               <span style="font-weight:700;color:#16a34a">${fmt(h.valor)}</span>
+              <button onclick="_abrirEditarEntrada(${_relIdx},'${h.id||''}')" style="background:#2563eb;color:#fff;border:none;padding:3px 8px;border-radius:5px;font-size:.7rem;cursor:pointer">✏️</button>
               <button onclick="delPix(${_relIdx},'${h.id||''}',${h.valor})" style="background:#ef4444;color:#fff;border:none;padding:3px 8px;border-radius:5px;font-size:.7rem;cursor:pointer">🗑️</button>
             </div>
           </div>

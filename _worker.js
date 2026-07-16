@@ -68,7 +68,7 @@ export default {
 
 
     // Rotas de API conhecidas — tudo fora disso serve o arquivo estático
-    const apiPaths = ['/admin/login','/admin/test-hash','/ia/analisar','/zapi/texto','/zapi/imagem','/storage/upload','/plano/verificar','/plano/ativar','/plano/bloquear','/plano/desbloquear','/func/token','/func/verificar','/func/pagar'];
+    const apiPaths = ['/admin/login','/ia/analisar','/zapi/texto','/zapi/imagem','/storage/upload','/plano/verificar','/plano/ativar','/plano/bloquear','/plano/desbloquear','/func/token','/func/verificar','/func/pagar'];
     if (!apiPaths.includes(path)) {
       const r = await env.ASSETS.fetch(req);
       const ct = r.headers.get('content-type') || '';
@@ -100,7 +100,6 @@ export default {
     try {
       switch (path) {
         case '/admin/login':       return await rotaAdminLogin(payload, env, cors, ip);
-        case '/admin/test-hash':   return await rotaTestHash(payload, env, cors);
         case '/ia/analisar':       return await rotaAnthropicAnalisar(payload, env, cors, ip);
         case '/zapi/texto':        return await rotaZapiTexto(payload, env, cors);
         case '/zapi/imagem':       return await rotaZapiImagem(payload, env, cors);
@@ -120,20 +119,6 @@ export default {
     }
   }
 };
-
-// ── Rota de diagnóstico POST ──
-async function rotaTestHash({ senha }, env, cors) {
-  if (!senha) return json({ erro: 'senha obrigatória' }, 400, cors);
-  const hash = await sha256hex(senha);
-  const hashSalvo = env.ADMIN_SENHA_HASH || '';
-  return json({
-    hash_gerado: hash,
-    hash_salvo_comeca: hashSalvo.slice(0, 8) + '...',
-    batem: hash === hashSalvo,
-    tamanho_gerado: hash.length,
-    tamanho_salvo: hashSalvo.length
-  }, 200, cors);
-}
 
 // ── Admin Login ──
 async function rotaAdminLogin({ senhaHash, senha }, env, cors, ip) {
@@ -410,12 +395,14 @@ async function rotaFuncToken({ adminHash, usuario, funcNome, wppFunc }, env, cor
         const rows = await r1.json();
         if (rows?.[0]) {
           const senhaHash = rows[0].senha_hash || '';
-          if (senhaHash && adminHash && senhaHash.length === adminHash.length) {
+          if (!senhaHash) {
+            autorizado = true; // conta existe e nunca teve senha cadastrada
+          } else if (adminHash && senhaHash.length === adminHash.length) {
             let diff = 0;
             for (let i = 0; i < senhaHash.length; i++) diff |= senhaHash.charCodeAt(i) ^ adminHash.charCodeAt(i);
             autorizado = diff === 0;
           } else {
-            autorizado = true; // usuario existe sem senha salva
+            autorizado = false; // conta tem senha cadastrada e adminHash não confere (ou não foi enviado)
           }
         }
       }

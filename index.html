@@ -961,6 +961,26 @@ tr:last-child td{border-bottom:none}
   </div>
 </div>
 
+<!-- MODAL EDITAR PAGAMENTO/BAIXA -->
+<div id="modEditarEntrada" class="overlay">
+  <div class="mbox"><div class="modal-handle"></div>
+    <button onclick="fecharMod('modEditarEntrada')" style="width:100%;padding:11px;background:#f1f5f9;border:none;border-radius:12px;font-weight:700;cursor:pointer;margin-bottom:14px;color:#475569;font-size:.85rem">✕ Fechar</button>
+    <h3 style="text-align:center;margin:0 0 4px">✏️ Editar Pagamento</h3>
+    <p style="text-align:center;font-size:.7rem;color:#64748b;margin:0 0 12px">Corrija o funcionário, valor ou descrição caso tenha marcado algo errado</p>
+
+    <label style="font-size:.65rem;font-weight:700;color:#475569;text-transform:uppercase">👤 Funcionário</label>
+    <select id="editEntradaFunc" style="margin-bottom:10px"></select>
+
+    <label style="font-size:.65rem;font-weight:700;color:#475569;text-transform:uppercase">💰 Valor (R$)</label>
+    <input id="editEntradaValor" type="number" step="0.01" style="margin-bottom:10px">
+
+    <label style="font-size:.65rem;font-weight:700;color:#475569;text-transform:uppercase">📝 Descrição</label>
+    <input id="editEntradaDesc" type="text" style="margin-bottom:14px">
+
+    <button onclick="salvarEdicaoEntrada()" style="width:100%;padding:15px;background:#16a34a;color:#fff;border:none;border-radius:12px;font-weight:800;cursor:pointer;font-size:.95rem">✅ SALVAR CORREÇÃO</button>
+  </div>
+</div>
+
 <!-- MODAL TUTORIAL -->
 <div id="modTutorial" class="overlay">
   <div class="mbox"><div class="modal-handle"></div>
@@ -1511,6 +1531,11 @@ function sanitize(str){
     .replace(/'/g,'&#x27;');
 }
 
+// ✅ Só permite links http(s) para comprovantes — bloqueia "javascript:"/"data:" como URL de foto
+function _fotoUrlSegura(url){
+  return (typeof url==='string' && /^https?:\/\//i.test(url)) ? url : '';
+}
+
 // ✅ Valida valor monetário/quantidade — rejeita Infinity, NaN, negativos e valores absurdos
 function _parseValor(v, max=999999){
   const n = parseFloat(v);
@@ -1848,7 +1873,7 @@ async function renderAdmin(){
       const cor = cli.saldo>0?'#f87171':'#4ade80';
       funcHtmlAdmin += `<div style="display:flex;justify-content:space-between;align-items:center;font-size:.75rem;padding:6px 0;border-bottom:1px solid #0f172a;gap:8px">
         <div>
-          <span style="color:#cbd5e1">👤 ${cli.nome}</span><br>
+          <span style="color:#cbd5e1">👤 ${sanitize(cli.nome)}</span><br>
           <span style="color:${cor};font-weight:700">R$ ${(cli.saldo||0).toFixed(2).replace('.',',')}</span>
         </div>
         <button onclick="adminExcluirFuncionario('${row.usuario}',${ci})"
@@ -1925,7 +1950,7 @@ async function renderAdmin(){
       <!-- Cabeçalho do gerente -->
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;gap:8px">
         <div>
-          <div style="color:#fbbf24;font-weight:700;font-size:.95rem">🏪 ${row.usuario}</div>
+          <div style="color:#fbbf24;font-weight:700;font-size:.95rem">🏪 ${sanitize(row.usuario)}</div>
           <div style="color:#475569;font-size:.6rem">🕐 ${upd}</div>
         </div>
         <button onclick="adminExcluirGerente('${row.usuario}')"
@@ -2265,6 +2290,7 @@ async function criarConta(){
   const senha2= document.getElementById('cSenha2').value;
   const err   = document.getElementById('cErro');
   if(!user||!senha){ err.innerText='Preencha todos os campos'; return; }
+  if(!/^[a-z0-9_]+$/.test(user)){ err.innerText='Usuário só pode ter letras, números e _'; return; }
   if(user.length<3){ err.innerText='Usuário deve ter pelo menos 3 caracteres'; return; }
   if(senha.length<8){ err.innerText='Senha deve ter pelo menos 8 caracteres'; return; }
   if(senha!==senha2){ err.innerText='❌ As senhas não coincidem'; return; }
@@ -2768,7 +2794,7 @@ function render(){
           <div style="height:6px;background:#e2e8f0;border-radius:3px;margin:6px 0">
             <div style="height:100%;width:${pct}%;background:#10b981;border-radius:3px"></div>
           </div>
-          <small style="color:#94a3b8;font-size:.65rem">${c.data||''}</small>
+          <small style="color:#94a3b8;font-size:.65rem">${sanitize(c.data||'')}</small>
           ${pagHtml}
         </div>`;
       });
@@ -2784,14 +2810,14 @@ function render(){
         const pct=Math.min(100,(usado/a.valor)*100);
         adiantHtml+=`<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:8px 10px;margin-bottom:6px;font-size:.78rem">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-            <b>${a.desc}</b>
+            <b>${sanitize(a.desc)}</b>
             <button class="bd" onclick="delAdiant(${fi},${ai})">🗑️</button>
           </div>
           <div style="color:#64748b;font-size:.72rem">Pago: ${fmt(a.valor)} · Usado: ${fmt(usado)} · <b style="color:${disp>0?'#16a34a':'#94a3b8'}">Disponível: ${fmt(disp)}</b></div>
           <div style="height:5px;background:#e2e8f0;border-radius:3px;margin:5px 0">
             <div style="height:100%;width:${pct}%;background:#f59e0b;border-radius:3px"></div>
           </div>
-          <small style="color:#94a3b8">${a.data} · ${a.origem==='caixa'?'do Caixa':'Externo'}</small>
+          <small style="color:#94a3b8">${sanitize(a.data)} · ${a.origem==='caixa'?'do Caixa':'Externo'}</small>
         </div>`;
       });
       if(creditoDisp>0){
@@ -2804,7 +2830,7 @@ function render(){
 
     htmlF+=`<div class="fb">
       <div class="fh" onclick="toggleForn(${fi})">
-        <span>🚚 ${f.nome}</span>
+        <span>🚚 ${sanitize(f.nome)}</span>
         <span style="color:${saldoForn>0?'#dc2626':'#16a34a'};font-size:.8rem">${fmt(saldoForn)} ${ab?'▲':'▼'}</span>
       </div>
       ${ab?`<div style="margin-top:8px">${notasHtml}${adiantHtml}<button data-acao="delforn" data-fi="${fi}" style="background:#ef4444;color:#fff;border:none;padding:9px 14px;border-radius:8px;font-weight:700;font-size:.8rem;cursor:pointer;margin-top:8px;width:100%">🗑️ Remover Fornecedor</button></div>`:''}
@@ -2969,7 +2995,7 @@ function _renderBotoesFunc(){
   const clientes=D.clientes||[];
   if(!clientes.length){ el.innerHTML=''; return; }
   el.innerHTML=clientes.map((c,ci)=>`
-    <button onclick="_enviarRelFuncWpp(${ci})" style="width:100%;padding:13px;background:#1d4ed8;color:#fff;border:none;border-radius:12px;font-weight:800;font-size:.88rem;cursor:pointer;margin-bottom:10px">📲 Relatório de ${c.nome}</button>
+    <button onclick="_enviarRelFuncWpp(${ci})" style="width:100%;padding:13px;background:#1d4ed8;color:#fff;border:none;border-radius:12px;font-weight:800;font-size:.88rem;cursor:pointer;margin-bottom:10px">📲 Relatório de ${sanitize(c.nome)}</button>
   `).join('');
 }
 
@@ -3003,7 +3029,7 @@ function _renderTodosFuncs(){
         const pct      = Math.min(100,h.valor>0?Math.round(pago/h.valor*100):100);
         return `<div style="padding:6px 0;border-bottom:1px solid #f1f5f9">
           <div style="display:flex;justify-content:space-between;font-size:.78rem;font-weight:700;color:#1e293b">
-            <span>${h.desc||'Entrega'} <small style="font-weight:400;color:#94a3b8">${h.data||''}</small></span>
+            <span>${sanitize(h.desc||'Entrega')} <small style="font-weight:400;color:#94a3b8">${sanitize(h.data||'')}</small></span>
             <span style="color:${quitado?'#16a34a':'#dc2626'};flex-shrink:0;margin-left:8px">${quitado?'✅':fmt(restante)+' deve'}</span>
           </div>
           <div style="background:#e2e8f0;border-radius:99px;height:5px;margin:4px 0;overflow:hidden">
@@ -3022,8 +3048,8 @@ function _renderTodosFuncs(){
     return `<div style="background:#fff;border:2px solid ${corCard};border-radius:14px;padding:14px;margin-bottom:14px">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
         <div>
-          <div style="font-size:.95rem;font-weight:800;color:#1e293b">${c.nome}</div>
-          ${c.wpp?`<div style="font-size:.65rem;color:#94a3b8">📱 ${c.wpp}</div>`:''}
+          <div style="font-size:.95rem;font-weight:800;color:#1e293b">${sanitize(c.nome)}</div>
+          ${c.wpp?`<div style="font-size:.65rem;color:#94a3b8">📱 ${sanitize(c.wpp)}</div>`:''}
         </div>
         <div style="text-align:right">
           <div style="font-size:1rem;font-weight:800;color:${corSaldo}">${c.saldo>0?fmt(c.saldo):'✅ Zerado'}</div>
@@ -3036,7 +3062,7 @@ function _renderTodosFuncs(){
         <span>Total entregue: <b style="color:#dc2626">${fmt(totalSaidas)}</b></span>
         <span>Total pago: <b style="color:#16a34a">${fmt(totalEntradas)}</b></span>
       </div>
-      <button onclick="_enviarRelFuncWpp(${ci})" style="width:100%;padding:10px;background:#25d366;color:#fff;border:none;border-radius:10px;font-weight:700;font-size:.8rem;cursor:pointer">📲 WhatsApp de ${c.nome}</button>
+      <button onclick="_enviarRelFuncWpp(${ci})" style="width:100%;padding:10px;background:#25d366;color:#fff;border:none;border-radius:10px;font-weight:700;font-size:.8rem;cursor:pointer">📲 WhatsApp de ${sanitize(c.nome)}</button>
     </div>`;
   }).join('');
 
@@ -3070,14 +3096,14 @@ function _renderTodosFuncs(){
       ${itensNaRua.map(item=>`
         <div style="background:#fff;border:1.5px solid #fecaca;border-radius:10px;padding:10px 12px;margin-bottom:8px">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">
-            <div style="font-size:.85rem;font-weight:800;color:#1e293b">${item.nome}</div>
+            <div style="font-size:.85rem;font-weight:800;color:#1e293b">${sanitize(item.nome)}</div>
             <div style="text-align:right;flex-shrink:0;margin-left:8px">
               ${item.qtdTotal>0?`<div style="font-size:.65rem;color:#64748b">${item.qtdTotal} un. na rua</div>`:''}
               <div style="font-size:.95rem;font-weight:800;color:#dc2626">${fmt(item.valorPendente)}</div>
             </div>
           </div>
           <div style="font-size:.68rem;color:#64748b;line-height:1.7">
-            ${item.funcs.map(f=>`👤 <b>${f.nome}</b>: deve <b style="color:#dc2626">${fmt(f.restante)}</b>${f.qtd?' · '+f.qtd+' un.':''} — ${f.data}`).join('<br>')}
+            ${item.funcs.map(f=>`👤 <b>${sanitize(f.nome)}</b>: deve <b style="color:#dc2626">${fmt(f.restante)}</b>${f.qtd?' · '+f.qtd+' un.':''} — ${sanitize(f.data)}`).join('<br>')}
           </div>
         </div>`).join('')}
       <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0 0;border-top:2px solid #dc2626;margin-top:4px">
@@ -3131,8 +3157,8 @@ function _renderRelFunc(){
       const quitado  = restante < 0.01;
       html += `<div style="display:flex;justify-content:space-between;align-items:flex-start;padding:7px 0;border-bottom:1px solid #f1f5f9;gap:8px">
         <div style="flex:1;min-width:0">
-          <div style="font-size:.8rem;font-weight:700;color:#1e293b">${h.desc||'Entrega'}</div>
-          <div style="font-size:.65rem;color:#94a3b8">${h.data||''}</div>
+          <div style="font-size:.8rem;font-weight:700;color:#1e293b">${sanitize(h.desc||'Entrega')}</div>
+          <div style="font-size:.65rem;color:#94a3b8">${sanitize(h.data||'')}</div>
         </div>
         <div style="text-align:right;flex-shrink:0">
           <div style="font-size:.82rem;font-weight:700;color:#dc2626">${fmt(h.valor)}</div>
@@ -3156,15 +3182,15 @@ function _renderRelFunc(){
       if(h.itensPix && h.itensPix.length){
         itensInfo = h.itensPix.map(ip=>{
           const s = hist.find(x=>x.tipo==='saida'&&String(x.id)===String(ip.saidaId));
-          return `<div style="font-size:.65rem;color:#166534;padding:1px 0">📦 ${s?s.desc:'Item'}: <b>${fmt(ip.valorPago)}</b></div>`;
+          return `<div style="font-size:.65rem;color:#166534;padding:1px 0">📦 ${sanitize(s?s.desc:'Item')}: <b>${fmt(ip.valorPago)}</b></div>`;
         }).join('');
         itensInfo = `<div style="background:#f0fdf4;border-radius:6px;padding:4px 8px;margin-top:4px">${itensInfo}</div>`;
       }
       html += `<div style="padding:7px 0;border-bottom:1px solid #f1f5f9">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
           <div>
-            <div style="font-size:.8rem;font-weight:700;color:#1e293b">${h.desc||'Pagamento'}</div>
-            <div style="font-size:.65rem;color:#94a3b8">${h.data||''}</div>
+            <div style="font-size:.8rem;font-weight:700;color:#1e293b">${sanitize(h.desc||'Pagamento')}</div>
+            <div style="font-size:.65rem;color:#94a3b8">${sanitize(h.data||'')}</div>
           </div>
           <div style="font-size:.88rem;font-weight:800;color:#16a34a;flex-shrink:0">${fmt(h.valor)}</div>
         </div>
@@ -3189,7 +3215,7 @@ function _renderRelFunc(){
       const pct      = Math.min(100, h.valor>0 ? Math.round(pago/h.valor*100) : 100);
       html += `<div style="padding:8px 0;border-bottom:1px solid #fef9c3">
         <div style="display:flex;justify-content:space-between;font-size:.8rem;font-weight:700;color:#1e293b;margin-bottom:4px">
-          <span>${h.desc||'Entrega'}</span>
+          <span>${sanitize(h.desc||'Entrega')}</span>
           <span style="color:${quitado?'#16a34a':'#d97706'}">${quitado?'✅ Quitado':'⚠️ Em aberto'}</span>
         </div>
         <div style="background:#e2e8f0;border-radius:99px;height:6px;margin-bottom:4px;overflow:hidden">
@@ -3365,8 +3391,8 @@ function _renderRelDevedores(){
   el.innerHTML = devedores.map(c=>`
     <div style="display:flex;justify-content:space-between;align-items:center;background:#fff;border:1.5px solid #fecaca;border-radius:12px;padding:12px 14px;margin-bottom:8px">
       <div>
-        <div style="font-size:.88rem;font-weight:700;color:#1e293b">${c.nome}</div>
-        ${c.wpp?`<div style="font-size:.65rem;color:#94a3b8">${c.wpp}</div>`:''}
+        <div style="font-size:.88rem;font-weight:700;color:#1e293b">${sanitize(c.nome)}</div>
+        ${c.wpp?`<div style="font-size:.65rem;color:#94a3b8">${sanitize(c.wpp)}</div>`:''}
       </div>
       <div style="font-size:1rem;font-weight:800;color:#dc2626">${fmt(c.saldo)}</div>
     </div>`).join('')
@@ -3388,8 +3414,8 @@ function _renderRelPaiol(){
   el.innerHTML = D.estoque.map(p=>`
     <div style="display:flex;justify-content:space-between;align-items:center;background:#fff;border:1.5px solid #e2e8f0;border-radius:12px;padding:12px 14px;margin-bottom:8px">
       <div>
-        <div style="font-size:.88rem;font-weight:700;color:#1e293b">${p.nome}</div>
-        ${p.forn?`<div style="font-size:.65rem;color:#94a3b8">${p.forn}</div>`:''}
+        <div style="font-size:.88rem;font-weight:700;color:#1e293b">${sanitize(p.nome)}</div>
+        ${p.forn?`<div style="font-size:.65rem;color:#94a3b8">${sanitize(p.forn)}</div>`:''}
       </div>
       <div style="text-align:right">
         <div style="font-size:.95rem;font-weight:800;color:#2563eb">${p.qtd} un.</div>
@@ -3541,8 +3567,8 @@ function _renderRelCaixa(){
         :`<td style="padding:6px 8px;text-align:right;color:#64748b;white-space:nowrap">${fmt(ev.antes)}</td>`;
       html+=`<tr style="background:${bg};border-bottom:1px solid #f1f5f9">
         <td style="padding:6px 8px;color:#1e293b">
-          <div style="font-weight:600">${icone} ${ev.desc}</div>
-          <div style="font-size:.62rem;color:#94a3b8">${ev.data}</div>
+          <div style="font-weight:600">${icone} ${sanitize(ev.desc)}</div>
+          <div style="font-size:.62rem;color:#94a3b8">${sanitize(ev.data)}</div>
         </td>
         ${valorCell}
         ${eraCell}
@@ -4145,16 +4171,16 @@ function _abrirProximaDaFila(){
   const c = D.clientes[idx];
   const restam = _filaCobrancaIdxs.length - _filaCobrancaPos;
   const msg = montarRelatorio(c);
-  const wppUrl = c.wpp ? `https://wa.me/55${c.wpp}?text=${encodeURIComponent(msg)}` : null;
+  const wppUrl = c.wpp ? `https://wa.me/55${encodeURIComponent(c.wpp)}?text=${encodeURIComponent(msg)}` : null;
 
   document.getElementById('listaCobranca').innerHTML = `
     <div style="font-size:.65rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px;text-align:center">Faltam ${restam} devedor(es)</div>
     <div style="background:#fff;border:1.5px solid #fecaca;border-radius:14px;padding:16px;text-align:center;margin-bottom:12px">
-      <div style="font-size:1rem;font-weight:800;color:#1e293b;margin-bottom:4px">👤 ${c.nome}</div>
+      <div style="font-size:1rem;font-weight:800;color:#1e293b;margin-bottom:4px">👤 ${sanitize(c.nome)}</div>
       <div style="font-size:1.3rem;font-weight:800;color:#dc2626">${fmt(c.saldo)}</div>
     </div>
     ${wppUrl
-      ? `<a href="${wppUrl}" target="_blank" style="display:block;width:100%;padding:13px;background:#25d366;color:#fff;border-radius:12px;font-weight:800;text-decoration:none;font-size:.85rem;text-align:center;margin-bottom:8px;box-sizing:border-box">📲 Cobrar no WhatsApp</a>`
+      ? `<a href="${sanitize(wppUrl)}" target="_blank" style="display:block;width:100%;padding:13px;background:#25d366;color:#fff;border-radius:12px;font-weight:800;text-decoration:none;font-size:.85rem;text-align:center;margin-bottom:8px;box-sizing:border-box">📲 Cobrar no WhatsApp</a>`
       : ''
     }
     <button onclick="_abrirAcertoDaFila(${idx})" style="width:100%;padding:13px;background:#16a34a;color:#fff;border:none;border-radius:12px;font-weight:800;font-size:.85rem;cursor:pointer;margin-bottom:8px">✅ Confirmar Recebimento</button>
@@ -4312,29 +4338,51 @@ function _matchFuncionarioImport(nomeRaw){
   return {idx:-1, status:'sem-match'};
 }
 
+// ✅ Reconhece o formato de texto livre usado no dia a dia (colado do WhatsApp/notas):
+// "<nome> <valor>[pix] <local> (<tipo>)" — ex: "Fastama 100 pix cuiba (bala)", "Ligerinho 200pix cuiba (óleo)"
+// Regra: primeiro vem o nome, depois o valor, e por último — entre parênteses — a mercadoria/tipo.
+// O que fica no meio ("pix cuiba", "pix barão"...) é só o destino do pix e é ignorado.
+function _parseLinhaLivre(linha){
+  const mParen = linha.match(/\(([^)]*)\)\s*$/);
+  const tipo = mParen ? mParen[1].trim() : '';
+  const semParen = mParen ? linha.slice(0, mParen.index) : linha;
+
+  const mNome = semParen.match(/^(\S+)/);
+  const nome = mNome ? mNome[1] : '';
+
+  const mValor = semParen.match(/(\d+(?:[.,]\d+)?)/);
+  const valor = mValor ? _parseValorImport(mValor[1]) : NaN;
+
+  return {nome, valor, tipo};
+}
+
 function analisarTabelaImport(){
   const bruto = document.getElementById('importTabelaTexto').value;
   const linhas = bruto.split(/\r?\n/).map(l=>l.trim()).filter(l=>l);
   if(!linhas.length) return alert('Cole a tabela primeiro.');
 
   const delim = _detectarDelimitadorImport(linhas);
-  let linhasDados = linhas.map(l=>l.split(delim).map(s=>s.trim()));
 
-  // Descarta cabeçalho se a 2ª coluna da 1ª linha não for número
-  if(linhasDados.length>1 && isNaN(_parseValorImport(linhasDados[0][1]))) linhasDados = linhasDados.slice(1);
+  _importRows = linhas.map(linha=>{
+    const cols = linha.split(delim).map(s=>s.trim());
+    let nome, valor, tipo;
 
-  _importRows = linhasDados.map(cols=>{
-    if(cols.length<2){
-      return {raw:cols.join(' '), nome:cols[0]||'', valor:NaN, tipo:'', matchIdx:-1, status:'linha-invalida', checked:false};
+    if(cols.length>=2 && !isNaN(_parseValorImport(cols[1]))){
+      // Tabela organizada em colunas (tab/vírgula) — Nome | Valor | Tipo
+      nome = cols[0];
+      valor = _parseValorImport(cols[1]);
+      tipo = cols.slice(2).join(' ').trim();
+    } else {
+      // Texto livre — tenta reconhecer "nome valor ... (tipo)"
+      const livre = _parseLinhaLivre(linha);
+      nome = livre.nome; valor = livre.valor; tipo = livre.tipo;
     }
-    const nomeRaw = cols[0];
-    const valor = _parseValorImport(cols[1]);
-    const tipo = cols.slice(2).join(' ').trim();
-    if(isNaN(valor)){
-      return {raw:cols.join(' '), nome:nomeRaw, valor:NaN, tipo, matchIdx:-1, status:'linha-invalida', checked:false};
+
+    if(!nome || isNaN(valor)){
+      return {raw:linha, nome:nome||'', valor:NaN, tipo:tipo||'', matchIdx:-1, status:'linha-invalida', checked:false};
     }
-    const {idx, status} = _matchFuncionarioImport(nomeRaw);
-    return {raw:cols.join(' '), nome:nomeRaw, valor, tipo, matchIdx:idx, status, checked: status==='ok'};
+    const {idx, status} = _matchFuncionarioImport(nome);
+    return {raw:linha, nome, valor, tipo, matchIdx:idx, status, checked: status==='ok'};
   });
 
   _renderPreviewImport();
@@ -4402,7 +4450,7 @@ function aplicarImportacaoTabela(){
   validas.forEach(r=>{
     const c = D.clientes[r.matchIdx];
     if(!c) return;
-    const desc = 'Importado: ' + (r.tipo || 'baixa');
+    const desc = 'Importado: ' + sanitize(r.tipo || 'baixa');
     c.historico.push({ id:_proximoHistId(), tipo:'entrada', desc, valor:r.valor, data:hoje() });
     c.saldo = Math.max(0, c.saldo - r.valor);
     D.recebido += r.valor;
@@ -4458,8 +4506,8 @@ function abrirLucros(){
     const acs=(c.historico||[]).filter(h=>h.tipo==='entrada'); if(!acs.length) return;
     const tot=acs.reduce((s,h)=>s+h.valor,0);
     acertoHtml+=`<div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:10px;margin-bottom:8px">
-      <div style="display:flex;justify-content:space-between;margin-bottom:6px"><b style="font-size:.8rem">👤 ${c.nome}</b><b style="color:#16a34a;font-size:.8rem">${fmt(tot)}</b></div>
-      ${[...acs].reverse().map(h=>`<div style="display:flex;justify-content:space-between;font-size:.72rem;padding:3px 0;color:#475569"><span>${h.data}</span><span style="font-weight:700;color:#16a34a">${fmt(h.valor)}</span></div>`).join('')}
+      <div style="display:flex;justify-content:space-between;margin-bottom:6px"><b style="font-size:.8rem">👤 ${sanitize(c.nome)}</b><b style="color:#16a34a;font-size:.8rem">${fmt(tot)}</b></div>
+      ${[...acs].reverse().map(h=>`<div style="display:flex;justify-content:space-between;font-size:.72rem;padding:3px 0;color:#475569"><span>${sanitize(h.data)}</span><span style="font-weight:700;color:#16a34a">${fmt(h.valor)}</span></div>`).join('')}
     </div>`;
   });
 
@@ -4678,8 +4726,8 @@ function _renderItensAcerto(){
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:${checked?'10px':'0'}">
         <input type="checkbox" id="chkA_${s.id}" onchange="_toggleItemAcerto('${s.id}',${restante})" ${checked?'checked':''} style="width:20px;height:20px;accent-color:#10b981;cursor:pointer;flex-shrink:0">
         <div style="flex:1;min-width:0">
-          <div style="font-size:.82rem;font-weight:700;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${s.desc||'Item'}</div>
-          <div style="font-size:.65rem;color:#64748b">${s.data||''} · Falta: <b style="color:#dc2626">${fmt(restante)}</b>${pago>0?' · Pago: '+fmt(pago):''}</div>
+          <div style="font-size:.82rem;font-weight:700;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${sanitize(s.desc||'Item')}</div>
+          <div style="font-size:.65rem;color:#64748b">${sanitize(s.data||'')} · Falta: <b style="color:#dc2626">${fmt(restante)}</b>${pago>0?' · Pago: '+fmt(pago):''}</div>
         </div>
       </div>
       ${checked?`<div style="display:flex;align-items:center;gap:8px">
@@ -4911,6 +4959,61 @@ function registrarPagamentoSep(){
     `<span style="color:white;font-size:.8rem">Saldo total: </span><span style="color:${c.saldo>0?'#f87171':'#4ade80'};font-weight:700">${fmt(c.saldo)}</span>`;
 }
 
+let _editEntradaCi = null;
+let _editEntradaId = null;
+
+function _abrirEditarEntrada(ci, entradaId){
+  const c = D.clientes[ci]; if(!c) return;
+  const h = (c.historico||[]).find(x=>x.tipo==='entrada' && String(x.id)===String(entradaId));
+  if(!h) return alert('Pagamento não encontrado. Reabra o relatório.');
+  _editEntradaCi = ci;
+  _editEntradaId = entradaId;
+  const sel = document.getElementById('editEntradaFunc');
+  sel.innerHTML = D.clientes.map((cli,i)=>`<option value="${i}" ${i===ci?'selected':''}>${sanitize(cli.nome)}</option>`).join('');
+  document.getElementById('editEntradaValor').value = h.valor;
+  document.getElementById('editEntradaDesc').value = h.desc || '';
+  document.getElementById('modEditarEntrada').classList.add('on');
+}
+
+function salvarEdicaoEntrada(){
+  if(_editEntradaCi===null || _editEntradaId===null) return;
+  const cOrig = D.clientes[_editEntradaCi]; if(!cOrig) return;
+  const idx = cOrig.historico.findIndex(x=>x.tipo==='entrada' && String(x.id)===String(_editEntradaId));
+  if(idx<0) return alert('Pagamento não encontrado. Reabra o relatório.');
+
+  const novoCi = parseInt(document.getElementById('editEntradaFunc').value, 10);
+  const novoValor = _parseValor(document.getElementById('editEntradaValor').value);
+  const novaDesc = sanitize(document.getElementById('editEntradaDesc').value.trim() || 'Acerto recebido');
+  if(!(novoValor>0)) return alert('Digite um valor válido.');
+  const cDestino = D.clientes[novoCi]; if(!cDestino) return alert('Selecione um funcionário válido.');
+
+  const h = cOrig.historico[idx];
+  const valorAntigo = h.valor;
+
+  // Remove do funcionário original e lança a versão corrigida no destino (pode ser o mesmo funcionário)
+  cOrig.historico.splice(idx,1);
+  cDestino.historico = cDestino.historico || [];
+  cDestino.historico.push({ ...h, valor: novoValor, desc: novaDesc });
+
+  // Recalcula saldo do(s) funcionário(s) afetado(s) a partir do histórico — evita drift
+  new Set([cOrig, cDestino]).forEach(c=>{
+    let saldo = 0;
+    (c.historico||[]).forEach(item=>{
+      if(item.tipo==='saida') saldo += item.valor||0;
+      else if(item.tipo==='entrada') saldo -= item.valor||0;
+    });
+    c.saldo = Math.max(0, saldo);
+  });
+
+  D.recebido = (D.recebido||0) + (novoValor - valorAntigo);
+
+  fecharMod('modEditarEntrada');
+  save();
+  render();
+  if(_relIdx!==null) filtrarRelatorio();
+  alert('✅ Pagamento corrigido com sucesso.');
+}
+
 function filtrarRelatorio(){
   if(_relIdx===null) return;
   const c = D.clientes[_relIdx];
@@ -4944,7 +5047,7 @@ function filtrarRelatorio(){
         preview+=`<div style="background:#f8fafc;border-radius:5px;padding:3px 8px;margin:5px 0 3px;font-size:.7rem;font-weight:700;color:#64748b">📅 ${data}</div>`;
         porData[data].forEach(h=>{
           preview+=`<div style="display:flex;justify-content:space-between;align-items:center;font-size:.78rem;padding:4px 0 4px 8px;border-bottom:1px solid #f1f5f9;gap:4px">
-            <span>🔴 ${h.desc}<br><small style="color:#94a3b8">${h.data}</small></span>
+            <span>🔴 ${sanitize(h.desc)}<br><small style="color:#94a3b8">${sanitize(h.data)}</small></span>
             <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
               <span style="font-weight:700;color:#dc2626">${fmt(h.valor)}</span>
               <button onclick="delSaida(${_relIdx},'${h.id||''}',${h.valor})" style="background:#ef4444;color:#fff;border:none;padding:3px 8px;border-radius:5px;font-size:.7rem;cursor:pointer">🗑️</button>
@@ -4964,9 +5067,10 @@ function filtrarRelatorio(){
       <div style="font-weight:700;font-size:.75rem;color:#1e293b;margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em">💰 Pagamentos Realizados</div>`;
     if(entradas.length){
       entradas.forEach(h=>{
-        const nomesInfo = (h.nomeRemetente||h.nomeRecebedor) ? `<small style="color:#64748b;display:block;margin-top:2px">${h.nomeRemetente?'👤 De: '+h.nomeRemetente:''}${h.nomeRemetente&&h.nomeRecebedor?' · ':''}${h.nomeRecebedor?'🏦 Para: '+h.nomeRecebedor:''}</small>` : '';
+        const nomesInfo = (h.nomeRemetente||h.nomeRecebedor) ? `<small style="color:#64748b;display:block;margin-top:2px">${h.nomeRemetente?'👤 De: '+sanitize(h.nomeRemetente):''}${h.nomeRemetente&&h.nomeRecebedor?' · ':''}${h.nomeRecebedor?'🏦 Para: '+sanitize(h.nomeRecebedor):''}</small>` : '';
         const horaLabel = h.timestampPix ? ' às '+new Date(h.timestampPix).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}) : '';
-        const fotoHtml = h.urlFoto ? `<a href="${h.urlFoto}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:4px;font-size:.68rem;color:#2563eb;text-decoration:none;margin-top:3px">📎 Ver comprovante</a>` : '';
+        const _urlFotoSeg = _fotoUrlSegura(h.urlFoto);
+        const fotoHtml = _urlFotoSeg ? `<a href="${sanitize(_urlFotoSeg)}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:4px;font-size:.68rem;color:#2563eb;text-decoration:none;margin-top:3px">📎 Ver comprovante</a>` : '';
         // Breakdown itens pagos nesse PIX
         let itensBreakdown = '';
         if(h.itensPix && h.itensPix.length){
@@ -4975,7 +5079,7 @@ function filtrarRelatorio(){
             const saida = hist.find(s=>s.tipo==='saida'&&String(s.id)===String(ip.saidaId));
             const nomeItem = saida ? saida.desc : 'Item';
             itensBreakdown += `<div style="display:flex;justify-content:space-between;font-size:.68rem;color:#166534;padding:1px 0">
-              <span>📦 ${nomeItem}</span><b>${fmt(ip.valorPago)}</b></div>`;
+              <span>📦 ${sanitize(nomeItem)}</span><b>${fmt(ip.valorPago)}</b></div>`;
           });
           itensBreakdown += `</div>`;
         }
@@ -4984,9 +5088,10 @@ function filtrarRelatorio(){
         const tagSep = h.separado ? `<span style="font-size:.6rem;background:#dcfce7;color:#166534;border-radius:4px;padding:1px 5px;margin-left:4px;font-weight:700">SEPARADO</span>` : '';
         preview+=`<div style="font-size:.78rem;padding:6px 0;border-bottom:1px solid #f1f5f9;${bgEntrada}">
           <div style="display:flex;justify-content:space-between;align-items:center;gap:4px">
-            <span>${iconeEntrada} ${h.desc}${tagSep}<br><small style="color:#94a3b8">${h.data}${horaLabel}</small>${nomesInfo}${fotoHtml}</span>
+            <span>${iconeEntrada} ${sanitize(h.desc)}${tagSep}<br><small style="color:#94a3b8">${sanitize(h.data)}${horaLabel}</small>${nomesInfo}${fotoHtml}</span>
             <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
               <span style="font-weight:700;color:#16a34a">${fmt(h.valor)}</span>
+              <button onclick="_abrirEditarEntrada(${_relIdx},'${h.id||''}')" style="background:#2563eb;color:#fff;border:none;padding:3px 8px;border-radius:5px;font-size:.7rem;cursor:pointer">✏️</button>
               <button onclick="delPix(${_relIdx},'${h.id||''}',${h.valor})" style="background:#ef4444;color:#fff;border:none;padding:3px 8px;border-radius:5px;font-size:.7rem;cursor:pointer">🗑️</button>
             </div>
           </div>
@@ -5889,7 +5994,7 @@ function renderAreaFunc(func, dados){
         const saida = _histSaidas.find(s=>String(s.id)===String(ip.saidaId));
         const nome = saida ? saida.desc : 'Item';
         breakdownHtml += `<div style="font-size:.63rem;color:#166534;display:flex;justify-content:space-between;gap:4px;padding:1px 0">
-          <span>📦 ${nome}</span><b>${fmt(ip.valorPago)}</b></div>`;
+          <span>📦 ${sanitize(nome)}</span><b>${fmt(ip.valorPago)}</b></div>`;
       });
       breakdownHtml += `</div>`;
     }
@@ -5898,8 +6003,8 @@ function renderAreaFunc(func, dados){
         <div style="display:flex;align-items:center;gap:10px">
           <div style="background:${bg};width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.9rem;flex-shrink:0">${icon}</div>
           <div>
-            <div style="font-size:.8rem;font-weight:600;color:#1e293b">${h.desc||'Movimentação'}</div>
-            <div style="font-size:.65rem;color:#94a3b8">${h.data||''}</div>
+            <div style="font-size:.8rem;font-weight:600;color:#1e293b">${sanitize(h.desc||'Movimentação')}</div>
+            <div style="font-size:.65rem;color:#94a3b8">${sanitize(h.data||'')}</div>
           </div>
         </div>
         <div style="font-weight:800;color:${cor};font-size:.9rem;flex-shrink:0">${isEntrada?'+':'-'}${fmt(h.valor)}</div>
@@ -5955,8 +6060,8 @@ function _renderItensPix(){
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:${checked?'10px':'0'}">
         <input type="checkbox" id="chk_${s.id}" onchange="_toggleItemPix('${s.id}',${restante})" ${checked?'checked':''} style="width:20px;height:20px;accent-color:#10b981;cursor:pointer;flex-shrink:0">
         <div style="flex:1;min-width:0">
-          <div style="font-size:.82rem;font-weight:700;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${s.desc||'Item'}</div>
-          <div style="font-size:.65rem;color:#64748b">${s.data||''} · Falta: <b style="color:#dc2626">${fmt(restante)}</b>${pago>0?' · Pago: '+fmt(pago):''}</div>
+          <div style="font-size:.82rem;font-weight:700;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${sanitize(s.desc||'Item')}</div>
+          <div style="font-size:.65rem;color:#64748b">${sanitize(s.data||'')} · Falta: <b style="color:#dc2626">${fmt(restante)}</b>${pago>0?' · Pago: '+fmt(pago):''}</div>
         </div>
       </div>
       ${checked?`<div style="display:flex;align-items:center;gap:8px">
@@ -7023,21 +7128,22 @@ function abrirGaleriaFunc(){
     const dataPix = h.timestampPix
       ? new Date(h.timestampPix).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'})
       : (h.data || '—');
-    const remetente = h.nomeRemetente || '—';
+    const remetente = sanitize(h.nomeRemetente || '—');
     const temImg = h.urlFoto || h.hashComprovante;
+    const _urlFotoGal = _fotoUrlSegura(h.urlFoto);
 
     return `<div onclick="verComprovante(${i})" data-idx="${i}"
       style="background:#fff;border-radius:14px;border:1.5px solid #e2e8f0;overflow:hidden;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.06)">
       <div style="background:linear-gradient(135deg,#0f172a,#1e3a5f);padding:0;text-align:center;height:90px;overflow:hidden;position:relative">
-        ${h.urlFoto
-          ? `<img src="${h.urlFoto}" style="width:100%;height:90px;object-fit:cover" onerror="this.parentNode.innerHTML='<div style=\\'padding:20px;font-size:1.6rem\\'>🧾</div>'">`
+        ${_urlFotoGal
+          ? `<img src="${sanitize(_urlFotoGal)}" style="width:100%;height:90px;object-fit:cover" onerror="this.parentNode.innerHTML='<div style=\\'padding:20px;font-size:1.6rem\\'>🧾</div>'">`
           : `<div style="padding:20px;font-size:1.6rem">${temImg ? '🧾' : '📝'}</div>`}
         <div style="position:absolute;bottom:2px;left:0;right:0;font-size:.55rem;color:#94a3b8;text-align:center">${dataPix}</div>
       </div>
       <div style="padding:10px">
         <div style="font-size:.85rem;font-weight:800;color:#16a34a">+${fmt(h.valor)}</div>
         <div style="font-size:.62rem;color:#64748b;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">👤 ${remetente}</div>
-        <div style="font-size:.6rem;color:#94a3b8;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${h.desc || 'PIX'}</div>
+        <div style="font-size:.6rem;color:#94a3b8;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${sanitize(h.desc || 'PIX')}</div>
       </div>
     </div>`;
   }).join('');
@@ -7058,8 +7164,9 @@ function verComprovante(idx){
 
   // Mostra a imagem se tiver URL
   const imgEl = document.getElementById('verCompImg');
-  if(h.urlFoto && imgEl){
-    imgEl.src = h.urlFoto;
+  const _urlFotoVer = _fotoUrlSegura(h.urlFoto);
+  if(_urlFotoVer && imgEl){
+    imgEl.src = _urlFotoVer;
     imgEl.style.display = 'block';
     imgEl.style.width = '100%';
     imgEl.style.borderRadius = '10px';
@@ -7072,12 +7179,12 @@ function verComprovante(idx){
   document.getElementById('verCompInfo').innerHTML = `
     <div style="display:grid;grid-template-columns:auto 1fr;gap:6px 12px;font-size:.8rem">
       <span style="color:#64748b">💰 Valor</span><b style="color:#16a34a">${fmt(h.valor)}</b>
-      <span style="color:#64748b">📅 Data/Hora PIX</span><b style="color:#fff">${dataPix}</b>
-      <span style="color:#64748b">📅 Registrado</span><b style="color:#fff">${h.data||'—'}</b>
-      <span style="color:#64748b">🧑 De</span><b style="color:#fff">${h.nomeRemetente||'—'}</b>
-      <span style="color:#64748b">🏦 Para</span><b style="color:#fff">${h.nomeRecebedor||'—'}</b>
-      <span style="color:#64748b">📝 Obs</span><b style="color:#fff">${h.desc||'—'}</b>
-      ${h.idTransacao ? `<span style="color:#64748b">🔑 ID</span><b style="color:#94a3b8;font-size:.68rem;word-break:break-all">${h.idTransacao}</b>` : ''}
+      <span style="color:#64748b">📅 Data/Hora PIX</span><b style="color:#fff">${sanitize(dataPix)}</b>
+      <span style="color:#64748b">📅 Registrado</span><b style="color:#fff">${sanitize(h.data||'—')}</b>
+      <span style="color:#64748b">🧑 De</span><b style="color:#fff">${sanitize(h.nomeRemetente||'—')}</b>
+      <span style="color:#64748b">🏦 Para</span><b style="color:#fff">${sanitize(h.nomeRecebedor||'—')}</b>
+      <span style="color:#64748b">📝 Obs</span><b style="color:#fff">${sanitize(h.desc||'—')}</b>
+      ${h.idTransacao ? `<span style="color:#64748b">🔑 ID</span><b style="color:#94a3b8;font-size:.68rem;word-break:break-all">${sanitize(h.idTransacao)}</b>` : ''}
     </div>
   `;
   document.getElementById('modVerComp').classList.add('on');
@@ -7153,8 +7260,8 @@ function _renderExtratoCaixa(){
       return `<div style="padding:10px 8px;border-bottom:1px solid rgba(255,255,255,.08)">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
           <div style="flex:1;min-width:0">
-            <div style="font-size:.78rem;font-weight:700;color:#f1f5f9;word-break:break-word">${icone} ${ev.desc}</div>
-            <div style="font-size:.6rem;color:#94a3b8;margin-top:2px">📅 ${ev.data || 'sem data'}</div>
+            <div style="font-size:.78rem;font-weight:700;color:#f1f5f9;word-break:break-word">${icone} ${sanitize(ev.desc)}</div>
+            <div style="font-size:.6rem;color:#94a3b8;margin-top:2px">📅 ${sanitize(ev.data || 'sem data')}</div>
             <div style="font-size:.62rem;color:#cbd5e1;margin-top:3px;background:#0f172a;padding:3px 6px;border-radius:4px;display:inline-block">era <b>${fmt(ev.antes)}</b> → ficou <b style="color:${cor}">${fmt(ev.depois)}</b></div>
           </div>
           <div style="font-size:.85rem;font-weight:800;color:${cor};white-space:nowrap;flex-shrink:0">${sinal} ${fmt(ev.valor)}</div>
@@ -7218,7 +7325,7 @@ function abrirDashboard(){
         const cor = cores[i] || '#94a3b8';
         return `<div style="margin-bottom:10px">
           <div style="display:flex;justify-content:space-between;margin-bottom:4px">
-            <span style="font-size:.78rem;color:#fff;font-weight:600">${i+1}. ${c.nome}</span>
+            <span style="font-size:.78rem;color:#fff;font-weight:600">${i+1}. ${sanitize(c.nome)}</span>
             <span style="font-size:.78rem;color:${cor};font-weight:700">${fmt(c.saldo)}</span>
           </div>
           <div style="height:6px;background:#334155;border-radius:3px">
@@ -7244,8 +7351,8 @@ function abrirDashboard(){
     ? recentes.slice(0,8).map(r => `
         <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #e2e8f0;font-size:.78rem">
           <div>
-            <div style="font-weight:700;color:#1e293b">${r.nome}</div>
-            <div style="font-size:.65rem;color:#94a3b8">${r.data||'—'} ${r.remetente ? '· '+r.remetente : ''}</div>
+            <div style="font-weight:700;color:#1e293b">${sanitize(r.nome)}</div>
+            <div style="font-size:.65rem;color:#94a3b8">${sanitize(r.data||'—')} ${r.remetente ? '· '+sanitize(r.remetente) : ''}</div>
           </div>
           <div style="font-weight:800;color:#16a34a">+${fmt(r.valor)}</div>
         </div>`).join('')
@@ -7314,8 +7421,8 @@ function abrirDashboard(){
     elEntregas.innerHTML = todasEntregas.map(h => `
       <div style="display:flex;justify-content:space-between;align-items:flex-start;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.06)">
         <div style="flex:1;min-width:0">
-          <div style="font-size:.75rem;font-weight:700;color:#f1f5f9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${h.desc||'Entrega'}</div>
-          <div style="font-size:.65rem;color:#94a3b8;margin-top:1px">👤 ${h._cliente} · 📅 ${h.data||'—'}</div>
+          <div style="font-size:.75rem;font-weight:700;color:#f1f5f9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${sanitize(h.desc||'Entrega')}</div>
+          <div style="font-size:.65rem;color:#94a3b8;margin-top:1px">👤 ${sanitize(h._cliente)} · 📅 ${sanitize(h.data||'—')}</div>
         </div>
         <div style="font-size:.8rem;font-weight:800;color:#f97316;margin-left:10px;white-space:nowrap">− ${fmt(h.valor||0)}</div>
       </div>`).join('');
@@ -7329,8 +7436,8 @@ function abrirDashboard(){
     elPix.innerHTML = todosPix.map(h => `
       <div style="display:flex;justify-content:space-between;align-items:flex-start;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.06)">
         <div style="flex:1;min-width:0">
-          <div style="font-size:.75rem;font-weight:700;color:#f1f5f9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${h.nomeRemetente ? '🧑 '+h.nomeRemetente : (h.desc||'PIX recebido')}</div>
-          <div style="font-size:.65rem;color:#94a3b8;margin-top:1px">👤 ${h._cliente} · 📅 ${h.data||'—'}${h.urlFoto ? ' · <a href="'+h.urlFoto+'" target="_blank" style="color:#60a5fa;text-decoration:none">📎 ver</a>' : ''}</div>
+          <div style="font-size:.75rem;font-weight:700;color:#f1f5f9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${h.nomeRemetente ? '🧑 '+sanitize(h.nomeRemetente) : sanitize(h.desc||'PIX recebido')}</div>
+          <div style="font-size:.65rem;color:#94a3b8;margin-top:1px">👤 ${sanitize(h._cliente)} · 📅 ${sanitize(h.data||'—')}${_fotoUrlSegura(h.urlFoto) ? ' · <a href="'+sanitize(_fotoUrlSegura(h.urlFoto))+'" target="_blank" style="color:#60a5fa;text-decoration:none">📎 ver</a>' : ''}</div>
         </div>
         <div style="font-size:.8rem;font-weight:800;color:#4ade80;margin-left:10px;white-space:nowrap">+ ${fmt(h.valor||0)}</div>
       </div>`).join('');

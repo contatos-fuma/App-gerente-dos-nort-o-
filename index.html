@@ -4333,9 +4333,39 @@ function _matchFuncionarioImport(nomeRaw){
   if(idx>=0) return {idx, status:'ok'};
   idx = D.clientes.findIndex(c=>_normNome(c.nome)===nomeN);
   if(idx>=0) return {idx, status:'ok'};
+  // ✅ Match por substring não é confiável o bastante pra pré-selecionar sozinho —
+  // fica só como sugestão (exibida no texto), o funcionário continua sem ser
+  // escolhido até o usuário confirmar manualmente.
   idx = D.clientes.findIndex(c=>_normNome(c.nome).includes(nomeN) || nomeN.includes(_normNome(c.nome)));
-  if(idx>=0) return {idx, status:'ambiguo'};
+  if(idx>=0) return {idx:-1, status:'ambiguo', sugestaoIdx:idx};
   return {idx:-1, status:'sem-match'};
+}
+
+// ✅ Lista as "mercadorias" (saídas) já lançadas pra um funcionário, com quanto
+// ainda falta pagar de cada uma — mesma lógica usada no acerto manual (_renderItensAcerto)
+function _itensDoFuncionario(ci){
+  const c = D.clientes[ci];
+  if(!c) return [];
+  const hist = c.historico || [];
+  const pagoPorItem = {};
+  hist.filter(h=>h.tipo==='entrada' && h.itensPix).forEach(e=>{
+    (e.itensPix||[]).forEach(ip=>{ pagoPorItem[String(ip.saidaId)] = (pagoPorItem[String(ip.saidaId)]||0) + (ip.valorPago||0); });
+  });
+  return hist.filter(h=>h.tipo==='saida').map(h=>{
+    const pago = pagoPorItem[String(h.id)] || 0;
+    const restante = Math.max(0, (h.valor||0) - pago);
+    return { id:h.id, desc:h.desc||'Item', valor:h.valor||0, restante };
+  });
+}
+
+// ✅ Sugere qual mercadoria esse pagamento provavelmente quita: se só tem uma
+// pendente, usa ela; senão tenta achar uma cujo valor restante bate certinho.
+function _sugerirItemImport(ci, valor){
+  const itens = _itensDoFuncionario(ci);
+  const pendentes = itens.filter(it=>it.restante>0.009);
+  if(pendentes.length===1) return pendentes[0].id;
+  const exato = pendentes.find(it=>Math.abs(it.restante-valor)<0.01);
+  return exato ? exato.id : null;
 }
 
 // ✅ Reconhece o formato de texto livre usado no dia a dia (colado do WhatsApp/notas):
@@ -4381,8 +4411,9 @@ function analisarTabelaImport(){
     if(!nome || isNaN(valor)){
       return {raw:linha, nome:nome||'', valor:NaN, tipo:tipo||'', matchIdx:-1, status:'linha-invalida', checked:false};
     }
-    const {idx, status} = _matchFuncionarioImport(nome);
-    return {raw:linha, nome, valor, tipo, matchIdx:idx, status, checked: status==='ok'};
+    const {idx, status, sugestaoIdx} = _matchFuncionarioImport(nome);
+    const itemId = idx>=0 ? _sugerirItemImport(idx, valor) : null;
+    return {raw:linha, nome, valor, tipo, matchIdx:idx, status, sugestaoIdx, itemId, checked: status==='ok'};
   });
 
   _renderPreviewImport();
@@ -4406,6 +4437,15 @@ function _renderPreviewImport(){
 
   box.innerHTML = _importRows.map((r,i)=>{
     const invalida = r.status==='linha-invalida';
+    const sugestaoNome = (r.status==='ambiguo' && r.sugestaoIdx>=0 && D.clientes[r.sugestaoIdx])
+      ? `<div style="font-size:.68rem;color:#d97706;margin-top:2px">Talvez seja: <b>${sanitize(D.clientes[r.sugestaoIdx].nome)}</b>?</div>` : '';
+    const itens = r.matchIdx>=0 ? _itensDoFuncionario(r.matchIdx) : [];
+    const itemSelect = r.matchIdx>=0
+      ? `<select onchange="_atualizarImportRow(${i},'itemId',this.value)" style="width:100%;padding:7px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:.75rem;margin-top:6px">
+          <option value="">— sem mercadoria específica (descrição livre) —</option>
+          ${itens.map(it=>`<option value="${it.id}" ${String(it.id)===String(r.itemId)?'selected':''}>${sanitize(it.desc)} — ${fmt(it.valor)}${it.restante<0.01?' (quitado)':' · falta '+fmt(it.restante)}</option>`).join('')}
+        </select>`
+      : '';
     return `<div style="background:#fff;border:1.5px solid ${invalida?'#fecaca':'#e2e8f0'};border-radius:10px;padding:10px;margin-bottom:8px;${invalida?'opacity:.6':''}">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
         <input type="checkbox" ${r.checked?'checked':''} ${invalida?'disabled':''} onchange="_atualizarImportRow(${i},'checked',this.checked)" style="width:18px;height:18px;accent-color:#16a34a;flex-shrink:0">
@@ -4414,14 +4454,14 @@ function _renderPreviewImport(){
       </div>
       ${invalida
         ? `<div style="font-size:.72rem;color:#dc2626">Linha não reconhecida — ignorada</div>`
-        : `<div style="display:flex;gap:6px;flex-wrap:wrap">
+        : `${sugestaoNome}<div style="display:flex;gap:6px;flex-wrap:wrap">
             <select onchange="_atualizarImportRow(${i},'matchIdx',this.value)" style="flex:1;min-width:120px;padding:7px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:.75rem">
-              <option value="-1">— selecionar funcionário —</option>
+              <option value="-1" ${r.matchIdx<0?'selected':''}>— selecionar funcionário —</option>
               ${D.clientes.map((c,ci)=>`<option value="${ci}" ${ci==r.matchIdx?'selected':''}>${sanitize(c.nome)}</option>`).join('')}
             </select>
             <input type="number" value="${r.valor.toFixed(2)}" step="0.01" oninput="_atualizarImportRow(${i},'valor',this.value)" style="width:90px;padding:7px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:.75rem;text-align:center">
             <input type="text" value="${sanitize(r.tipo)}" placeholder="Tipo" oninput="_atualizarImportRow(${i},'tipo',this.value)" style="flex:1;min-width:80px;padding:7px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:.75rem">
-          </div>`
+          </div>${itemSelect}`
       }
     </div>`;
   }).join('');
@@ -4434,9 +4474,19 @@ function _atualizarImportRow(i, campo, valor){
   if(!r) return;
   if(campo==='matchIdx'){
     r.matchIdx = parseInt(valor,10);
-    if(r.matchIdx>=0){ r.status = 'ok'; r.checked = true; _renderPreviewImport(); }
+    if(r.matchIdx>=0){
+      r.status = 'ok'; r.checked = true;
+      r.itemId = _sugerirItemImport(r.matchIdx, r.valor);
+    } else {
+      r.itemId = null;
+    }
+    _renderPreviewImport();
   }
-  else if(campo==='valor') r.valor = _parseValor(valor);
+  else if(campo==='valor'){
+    r.valor = _parseValor(valor);
+    if(r.matchIdx>=0 && !r.itemId) r.itemId = _sugerirItemImport(r.matchIdx, r.valor);
+  }
+  else if(campo==='itemId') r.itemId = valor || null;
   else if(campo==='checked') r.checked = !!valor;
   else r[campo] = valor;
 }
@@ -4450,8 +4500,10 @@ function aplicarImportacaoTabela(){
   validas.forEach(r=>{
     const c = D.clientes[r.matchIdx];
     if(!c) return;
-    const desc = 'Importado: ' + sanitize(r.tipo || 'baixa');
-    c.historico.push({ id:_proximoHistId(), tipo:'entrada', desc, valor:r.valor, data:hoje() });
+    const item = r.itemId ? _itensDoFuncionario(r.matchIdx).find(it=>String(it.id)===String(r.itemId)) : null;
+    const desc = item ? ('Acerto — ' + sanitize(item.desc) + ': ' + fmt(r.valor)) : ('Importado: ' + sanitize(r.tipo || 'baixa'));
+    const itensPix = item ? [{ saidaId:String(item.id), valorPago:+r.valor.toFixed(2) }] : null;
+    c.historico.push({ id:_proximoHistId(), tipo:'entrada', desc, valor:r.valor, data:hoje(), itensPix });
     c.saldo = Math.max(0, c.saldo - r.valor);
     D.recebido += r.valor;
     total += r.valor;

@@ -2794,7 +2794,7 @@ function render(){
           <div style="height:6px;background:#e2e8f0;border-radius:3px;margin:6px 0">
             <div style="height:100%;width:${pct}%;background:#10b981;border-radius:3px"></div>
           </div>
-          <small style="color:#94a3b8;font-size:.65rem">${c.data||''}</small>
+          <small style="color:#94a3b8;font-size:.65rem">${sanitize(c.data||'')}</small>
           ${pagHtml}
         </div>`;
       });
@@ -2810,14 +2810,14 @@ function render(){
         const pct=Math.min(100,(usado/a.valor)*100);
         adiantHtml+=`<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:8px 10px;margin-bottom:6px;font-size:.78rem">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-            <b>${a.desc}</b>
+            <b>${sanitize(a.desc)}</b>
             <button class="bd" onclick="delAdiant(${fi},${ai})">🗑️</button>
           </div>
           <div style="color:#64748b;font-size:.72rem">Pago: ${fmt(a.valor)} · Usado: ${fmt(usado)} · <b style="color:${disp>0?'#16a34a':'#94a3b8'}">Disponível: ${fmt(disp)}</b></div>
           <div style="height:5px;background:#e2e8f0;border-radius:3px;margin:5px 0">
             <div style="height:100%;width:${pct}%;background:#f59e0b;border-radius:3px"></div>
           </div>
-          <small style="color:#94a3b8">${a.data} · ${a.origem==='caixa'?'do Caixa':'Externo'}</small>
+          <small style="color:#94a3b8">${sanitize(a.data)} · ${a.origem==='caixa'?'do Caixa':'Externo'}</small>
         </div>`;
       });
       if(creditoDisp>0){
@@ -2830,7 +2830,7 @@ function render(){
 
     htmlF+=`<div class="fb">
       <div class="fh" onclick="toggleForn(${fi})">
-        <span>🚚 ${f.nome}</span>
+        <span>🚚 ${sanitize(f.nome)}</span>
         <span style="color:${saldoForn>0?'#dc2626':'#16a34a'};font-size:.8rem">${fmt(saldoForn)} ${ab?'▲':'▼'}</span>
       </div>
       ${ab?`<div style="margin-top:8px">${notasHtml}${adiantHtml}<button data-acao="delforn" data-fi="${fi}" style="background:#ef4444;color:#fff;border:none;padding:9px 14px;border-radius:8px;font-weight:700;font-size:.8rem;cursor:pointer;margin-top:8px;width:100%">🗑️ Remover Fornecedor</button></div>`:''}
@@ -2995,7 +2995,7 @@ function _renderBotoesFunc(){
   const clientes=D.clientes||[];
   if(!clientes.length){ el.innerHTML=''; return; }
   el.innerHTML=clientes.map((c,ci)=>`
-    <button onclick="_enviarRelFuncWpp(${ci})" style="width:100%;padding:13px;background:#1d4ed8;color:#fff;border:none;border-radius:12px;font-weight:800;font-size:.88rem;cursor:pointer;margin-bottom:10px">📲 Relatório de ${c.nome}</button>
+    <button onclick="_enviarRelFuncWpp(${ci})" style="width:100%;padding:13px;background:#1d4ed8;color:#fff;border:none;border-radius:12px;font-weight:800;font-size:.88rem;cursor:pointer;margin-bottom:10px">📲 Relatório de ${sanitize(c.nome)}</button>
   `).join('');
 }
 
@@ -3062,7 +3062,7 @@ function _renderTodosFuncs(){
         <span>Total entregue: <b style="color:#dc2626">${fmt(totalSaidas)}</b></span>
         <span>Total pago: <b style="color:#16a34a">${fmt(totalEntradas)}</b></span>
       </div>
-      <button onclick="_enviarRelFuncWpp(${ci})" style="width:100%;padding:10px;background:#25d366;color:#fff;border:none;border-radius:10px;font-weight:700;font-size:.8rem;cursor:pointer">📲 WhatsApp de ${c.nome}</button>
+      <button onclick="_enviarRelFuncWpp(${ci})" style="width:100%;padding:10px;background:#25d366;color:#fff;border:none;border-radius:10px;font-weight:700;font-size:.8rem;cursor:pointer">📲 WhatsApp de ${sanitize(c.nome)}</button>
     </div>`;
   }).join('');
 
@@ -3096,14 +3096,14 @@ function _renderTodosFuncs(){
       ${itensNaRua.map(item=>`
         <div style="background:#fff;border:1.5px solid #fecaca;border-radius:10px;padding:10px 12px;margin-bottom:8px">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">
-            <div style="font-size:.85rem;font-weight:800;color:#1e293b">${item.nome}</div>
+            <div style="font-size:.85rem;font-weight:800;color:#1e293b">${sanitize(item.nome)}</div>
             <div style="text-align:right;flex-shrink:0;margin-left:8px">
               ${item.qtdTotal>0?`<div style="font-size:.65rem;color:#64748b">${item.qtdTotal} un. na rua</div>`:''}
               <div style="font-size:.95rem;font-weight:800;color:#dc2626">${fmt(item.valorPendente)}</div>
             </div>
           </div>
           <div style="font-size:.68rem;color:#64748b;line-height:1.7">
-            ${item.funcs.map(f=>`👤 <b>${f.nome}</b>: deve <b style="color:#dc2626">${fmt(f.restante)}</b>${f.qtd?' · '+f.qtd+' un.':''} — ${f.data}`).join('<br>')}
+            ${item.funcs.map(f=>`👤 <b>${sanitize(f.nome)}</b>: deve <b style="color:#dc2626">${fmt(f.restante)}</b>${f.qtd?' · '+f.qtd+' un.':''} — ${sanitize(f.data)}`).join('<br>')}
           </div>
         </div>`).join('')}
       <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0 0;border-top:2px solid #dc2626;margin-top:4px">
@@ -3391,8 +3391,8 @@ function _renderRelDevedores(){
   el.innerHTML = devedores.map(c=>`
     <div style="display:flex;justify-content:space-between;align-items:center;background:#fff;border:1.5px solid #fecaca;border-radius:12px;padding:12px 14px;margin-bottom:8px">
       <div>
-        <div style="font-size:.88rem;font-weight:700;color:#1e293b">${c.nome}</div>
-        ${c.wpp?`<div style="font-size:.65rem;color:#94a3b8">${c.wpp}</div>`:''}
+        <div style="font-size:.88rem;font-weight:700;color:#1e293b">${sanitize(c.nome)}</div>
+        ${c.wpp?`<div style="font-size:.65rem;color:#94a3b8">${sanitize(c.wpp)}</div>`:''}
       </div>
       <div style="font-size:1rem;font-weight:800;color:#dc2626">${fmt(c.saldo)}</div>
     </div>`).join('')
@@ -3414,8 +3414,8 @@ function _renderRelPaiol(){
   el.innerHTML = D.estoque.map(p=>`
     <div style="display:flex;justify-content:space-between;align-items:center;background:#fff;border:1.5px solid #e2e8f0;border-radius:12px;padding:12px 14px;margin-bottom:8px">
       <div>
-        <div style="font-size:.88rem;font-weight:700;color:#1e293b">${p.nome}</div>
-        ${p.forn?`<div style="font-size:.65rem;color:#94a3b8">${p.forn}</div>`:''}
+        <div style="font-size:.88rem;font-weight:700;color:#1e293b">${sanitize(p.nome)}</div>
+        ${p.forn?`<div style="font-size:.65rem;color:#94a3b8">${sanitize(p.forn)}</div>`:''}
       </div>
       <div style="text-align:right">
         <div style="font-size:.95rem;font-weight:800;color:#2563eb">${p.qtd} un.</div>
@@ -3567,8 +3567,8 @@ function _renderRelCaixa(){
         :`<td style="padding:6px 8px;text-align:right;color:#64748b;white-space:nowrap">${fmt(ev.antes)}</td>`;
       html+=`<tr style="background:${bg};border-bottom:1px solid #f1f5f9">
         <td style="padding:6px 8px;color:#1e293b">
-          <div style="font-weight:600">${icone} ${ev.desc}</div>
-          <div style="font-size:.62rem;color:#94a3b8">${ev.data}</div>
+          <div style="font-weight:600">${icone} ${sanitize(ev.desc)}</div>
+          <div style="font-size:.62rem;color:#94a3b8">${sanitize(ev.data)}</div>
         </td>
         ${valorCell}
         ${eraCell}
@@ -4171,16 +4171,16 @@ function _abrirProximaDaFila(){
   const c = D.clientes[idx];
   const restam = _filaCobrancaIdxs.length - _filaCobrancaPos;
   const msg = montarRelatorio(c);
-  const wppUrl = c.wpp ? `https://wa.me/55${c.wpp}?text=${encodeURIComponent(msg)}` : null;
+  const wppUrl = c.wpp ? `https://wa.me/55${encodeURIComponent(c.wpp)}?text=${encodeURIComponent(msg)}` : null;
 
   document.getElementById('listaCobranca').innerHTML = `
     <div style="font-size:.65rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px;text-align:center">Faltam ${restam} devedor(es)</div>
     <div style="background:#fff;border:1.5px solid #fecaca;border-radius:14px;padding:16px;text-align:center;margin-bottom:12px">
-      <div style="font-size:1rem;font-weight:800;color:#1e293b;margin-bottom:4px">👤 ${c.nome}</div>
+      <div style="font-size:1rem;font-weight:800;color:#1e293b;margin-bottom:4px">👤 ${sanitize(c.nome)}</div>
       <div style="font-size:1.3rem;font-weight:800;color:#dc2626">${fmt(c.saldo)}</div>
     </div>
     ${wppUrl
-      ? `<a href="${wppUrl}" target="_blank" style="display:block;width:100%;padding:13px;background:#25d366;color:#fff;border-radius:12px;font-weight:800;text-decoration:none;font-size:.85rem;text-align:center;margin-bottom:8px;box-sizing:border-box">📲 Cobrar no WhatsApp</a>`
+      ? `<a href="${sanitize(wppUrl)}" target="_blank" style="display:block;width:100%;padding:13px;background:#25d366;color:#fff;border-radius:12px;font-weight:800;text-decoration:none;font-size:.85rem;text-align:center;margin-bottom:8px;box-sizing:border-box">📲 Cobrar no WhatsApp</a>`
       : ''
     }
     <button onclick="_abrirAcertoDaFila(${idx})" style="width:100%;padding:13px;background:#16a34a;color:#fff;border:none;border-radius:12px;font-weight:800;font-size:.85rem;cursor:pointer;margin-bottom:8px">✅ Confirmar Recebimento</button>
@@ -4506,8 +4506,8 @@ function abrirLucros(){
     const acs=(c.historico||[]).filter(h=>h.tipo==='entrada'); if(!acs.length) return;
     const tot=acs.reduce((s,h)=>s+h.valor,0);
     acertoHtml+=`<div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:10px;margin-bottom:8px">
-      <div style="display:flex;justify-content:space-between;margin-bottom:6px"><b style="font-size:.8rem">👤 ${c.nome}</b><b style="color:#16a34a;font-size:.8rem">${fmt(tot)}</b></div>
-      ${[...acs].reverse().map(h=>`<div style="display:flex;justify-content:space-between;font-size:.72rem;padding:3px 0;color:#475569"><span>${h.data}</span><span style="font-weight:700;color:#16a34a">${fmt(h.valor)}</span></div>`).join('')}
+      <div style="display:flex;justify-content:space-between;margin-bottom:6px"><b style="font-size:.8rem">👤 ${sanitize(c.nome)}</b><b style="color:#16a34a;font-size:.8rem">${fmt(tot)}</b></div>
+      ${[...acs].reverse().map(h=>`<div style="display:flex;justify-content:space-between;font-size:.72rem;padding:3px 0;color:#475569"><span>${sanitize(h.data)}</span><span style="font-weight:700;color:#16a34a">${fmt(h.valor)}</span></div>`).join('')}
     </div>`;
   });
 
@@ -4726,8 +4726,8 @@ function _renderItensAcerto(){
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:${checked?'10px':'0'}">
         <input type="checkbox" id="chkA_${s.id}" onchange="_toggleItemAcerto('${s.id}',${restante})" ${checked?'checked':''} style="width:20px;height:20px;accent-color:#10b981;cursor:pointer;flex-shrink:0">
         <div style="flex:1;min-width:0">
-          <div style="font-size:.82rem;font-weight:700;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${s.desc||'Item'}</div>
-          <div style="font-size:.65rem;color:#64748b">${s.data||''} · Falta: <b style="color:#dc2626">${fmt(restante)}</b>${pago>0?' · Pago: '+fmt(pago):''}</div>
+          <div style="font-size:.82rem;font-weight:700;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${sanitize(s.desc||'Item')}</div>
+          <div style="font-size:.65rem;color:#64748b">${sanitize(s.data||'')} · Falta: <b style="color:#dc2626">${fmt(restante)}</b>${pago>0?' · Pago: '+fmt(pago):''}</div>
         </div>
       </div>
       ${checked?`<div style="display:flex;align-items:center;gap:8px">
@@ -6060,8 +6060,8 @@ function _renderItensPix(){
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:${checked?'10px':'0'}">
         <input type="checkbox" id="chk_${s.id}" onchange="_toggleItemPix('${s.id}',${restante})" ${checked?'checked':''} style="width:20px;height:20px;accent-color:#10b981;cursor:pointer;flex-shrink:0">
         <div style="flex:1;min-width:0">
-          <div style="font-size:.82rem;font-weight:700;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${s.desc||'Item'}</div>
-          <div style="font-size:.65rem;color:#64748b">${s.data||''} · Falta: <b style="color:#dc2626">${fmt(restante)}</b>${pago>0?' · Pago: '+fmt(pago):''}</div>
+          <div style="font-size:.82rem;font-weight:700;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${sanitize(s.desc||'Item')}</div>
+          <div style="font-size:.65rem;color:#64748b">${sanitize(s.data||'')} · Falta: <b style="color:#dc2626">${fmt(restante)}</b>${pago>0?' · Pago: '+fmt(pago):''}</div>
         </div>
       </div>
       ${checked?`<div style="display:flex;align-items:center;gap:8px">
@@ -7179,8 +7179,8 @@ function verComprovante(idx){
   document.getElementById('verCompInfo').innerHTML = `
     <div style="display:grid;grid-template-columns:auto 1fr;gap:6px 12px;font-size:.8rem">
       <span style="color:#64748b">💰 Valor</span><b style="color:#16a34a">${fmt(h.valor)}</b>
-      <span style="color:#64748b">📅 Data/Hora PIX</span><b style="color:#fff">${dataPix}</b>
-      <span style="color:#64748b">📅 Registrado</span><b style="color:#fff">${h.data||'—'}</b>
+      <span style="color:#64748b">📅 Data/Hora PIX</span><b style="color:#fff">${sanitize(dataPix)}</b>
+      <span style="color:#64748b">📅 Registrado</span><b style="color:#fff">${sanitize(h.data||'—')}</b>
       <span style="color:#64748b">🧑 De</span><b style="color:#fff">${sanitize(h.nomeRemetente||'—')}</b>
       <span style="color:#64748b">🏦 Para</span><b style="color:#fff">${sanitize(h.nomeRecebedor||'—')}</b>
       <span style="color:#64748b">📝 Obs</span><b style="color:#fff">${sanitize(h.desc||'—')}</b>
@@ -7260,8 +7260,8 @@ function _renderExtratoCaixa(){
       return `<div style="padding:10px 8px;border-bottom:1px solid rgba(255,255,255,.08)">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
           <div style="flex:1;min-width:0">
-            <div style="font-size:.78rem;font-weight:700;color:#f1f5f9;word-break:break-word">${icone} ${ev.desc}</div>
-            <div style="font-size:.6rem;color:#94a3b8;margin-top:2px">📅 ${ev.data || 'sem data'}</div>
+            <div style="font-size:.78rem;font-weight:700;color:#f1f5f9;word-break:break-word">${icone} ${sanitize(ev.desc)}</div>
+            <div style="font-size:.6rem;color:#94a3b8;margin-top:2px">📅 ${sanitize(ev.data || 'sem data')}</div>
             <div style="font-size:.62rem;color:#cbd5e1;margin-top:3px;background:#0f172a;padding:3px 6px;border-radius:4px;display:inline-block">era <b>${fmt(ev.antes)}</b> → ficou <b style="color:${cor}">${fmt(ev.depois)}</b></div>
           </div>
           <div style="font-size:.85rem;font-weight:800;color:${cor};white-space:nowrap;flex-shrink:0">${sinal} ${fmt(ev.valor)}</div>
@@ -7325,7 +7325,7 @@ function abrirDashboard(){
         const cor = cores[i] || '#94a3b8';
         return `<div style="margin-bottom:10px">
           <div style="display:flex;justify-content:space-between;margin-bottom:4px">
-            <span style="font-size:.78rem;color:#fff;font-weight:600">${i+1}. ${c.nome}</span>
+            <span style="font-size:.78rem;color:#fff;font-weight:600">${i+1}. ${sanitize(c.nome)}</span>
             <span style="font-size:.78rem;color:${cor};font-weight:700">${fmt(c.saldo)}</span>
           </div>
           <div style="height:6px;background:#334155;border-radius:3px">
@@ -7351,8 +7351,8 @@ function abrirDashboard(){
     ? recentes.slice(0,8).map(r => `
         <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #e2e8f0;font-size:.78rem">
           <div>
-            <div style="font-weight:700;color:#1e293b">${r.nome}</div>
-            <div style="font-size:.65rem;color:#94a3b8">${r.data||'—'} ${r.remetente ? '· '+r.remetente : ''}</div>
+            <div style="font-weight:700;color:#1e293b">${sanitize(r.nome)}</div>
+            <div style="font-size:.65rem;color:#94a3b8">${sanitize(r.data||'—')} ${r.remetente ? '· '+sanitize(r.remetente) : ''}</div>
           </div>
           <div style="font-weight:800;color:#16a34a">+${fmt(r.valor)}</div>
         </div>`).join('')
